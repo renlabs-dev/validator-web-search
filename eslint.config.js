@@ -11,14 +11,22 @@ export default [
       parserOptions: {
         project: "./tsconfig.json",
       },
+      globals: {
+        console: "readonly",
+        process: "readonly",
+        URL: "readonly",
+        fetch: "readonly",
+        setTimeout: "readonly",
+      },
     },
     plugins: {
       "@typescript-eslint": tseslint,
     },
     rules: {
+      "no-unused-vars": "off",
       "@typescript-eslint/no-unused-vars": [
         "error",
-        { argsIgnorePattern: "^_" },
+        { argsIgnorePattern: "^_", varsIgnorePattern: "^_" },
       ],
       "@typescript-eslint/no-explicit-any": "warn",
       "@typescript-eslint/explicit-function-return-type": "off",
@@ -27,6 +35,6 @@ export default [
     },
   },
   {
-    ignores: ["dist/", "node_modules/", "*.config.js"],
+    ignores: ["dist/", "node_modules/", "*.config.js", "*.config.ts", "drizzle/"],
   },
 ];

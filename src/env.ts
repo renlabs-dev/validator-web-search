@@ -7,8 +7,8 @@ export const env = createEnv({
     NODE_ENV: z
       .enum(["development", "production", "test"])
       .default("development"),
-    DATABASE_URL: z.string().url(),
-    WEB_SEARCH_API_KEY: z.string().optional(),
+    POSTGRES_URL: z.string().url(),
+    SEARCHAPI_API_KEY: z.string(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
