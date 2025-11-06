@@ -1,6 +1,6 @@
 # Validator
 
-Validator is the fourth and final stage in the Torus prediction pipeline. It validates verdicts from the Verifier by performing independent web searches and evidence gathering.
+Validator validates verdicts from the Verifier by performing independent web searches and evidence gathering.
 
 ## Quick Start
 
