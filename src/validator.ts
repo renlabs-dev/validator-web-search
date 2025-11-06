@@ -10,7 +10,10 @@ import {
   type ParsedPredictionDetails,
   type ScrapedTweet,
 } from "./db/schema.js";
-import { searchWeb } from "./search/searchapi.js";
+import { searchMultiple } from "./search/searchapi.js";
+import { QueryEnhancer } from "./llm/query-enhancer.js";
+import { ResultJudge } from "./llm/result-judge.js";
+import { truncateText } from "./utils.js";
 
 export const ValidationOutcome = z.enum([
   "MaturedTrue",
@@ -56,7 +59,7 @@ export class Validator {
    * Criteria: timeframe_end_utc is not null, is today or past, and no verdict exists
    */
   async getNextPredictionToValidate(
-    tx: Transaction
+    tx: Transaction,
   ): Promise<PredictionToValidate | null> {
     const now = new Date();
 
@@ -69,11 +72,11 @@ export class Validator {
       .from(parsedPrediction)
       .innerJoin(
         parsedPredictionDetails,
-        eq(parsedPrediction.id, parsedPredictionDetails.parsedPredictionId)
+        eq(parsedPrediction.id, parsedPredictionDetails.parsedPredictionId),
       )
       .innerJoin(
         scrapedTweet,
-        eq(parsedPrediction.predictionId, scrapedTweet.predictionId)
+        eq(parsedPrediction.predictionId, scrapedTweet.predictionId),
       )
       .where(
         and(
@@ -85,9 +88,11 @@ export class Validator {
             tx
               .select()
               .from(validationResult)
-              .where(eq(validationResult.parsedPredictionId, parsedPrediction.id))
-          )
-        )
+              .where(
+                eq(validationResult.parsedPredictionId, parsedPrediction.id),
+              ),
+          ),
+        ),
       )
       .orderBy(asc(parsedPredictionDetails.timeframeEndUtc))
       .limit(1)
@@ -97,13 +102,16 @@ export class Validator {
       return null;
     }
 
-    return predictions[0] ?? null;;
+    return predictions[0] ?? null;
   }
 
   /**
    * Fetch a specific tweet by ID from the database
    */
-  async getThreadTweet(tx: Transaction, tweetId: string): Promise<string | null> {
+  async getThreadTweet(
+    tx: Transaction,
+    tweetId: string,
+  ): Promise<string | null> {
     const tweets = await tx
       .select({ text: scrapedTweet.text })
       .from(scrapedTweet)
@@ -119,7 +127,7 @@ export class Validator {
    */
   async extractGoalText(
     tx: Transaction,
-    prediction: PredictionToValidate
+    prediction: PredictionToValidate,
   ): Promise<string> {
     interface GoalSlice {
       start: number;
@@ -138,7 +146,8 @@ export class Validator {
 
     // Check if any goal slice references a different tweet
     const crossTweetSlices = goalSlices.filter(
-      (slice) => slice.source?.tweet_id && slice.source.tweet_id !== currentTweetId
+      (slice) =>
+        slice.source?.tweet_id && slice.source.tweet_id !== currentTweetId,
     );
 
     if (crossTweetSlices.length > 0) {
@@ -184,7 +193,7 @@ export class Validator {
    */
   async storeValidationResult(
     tx: Transaction,
-    result: ValidationResult
+    result: ValidationResult,
   ): Promise<void> {
     await tx.insert(validationResult).values({
       parsedPredictionId: result.prediction_id.toString(),
@@ -195,11 +204,11 @@ export class Validator {
   }
 
   /**
-   * Validate a single prediction
+   * Validate a single prediction using parallel multi-agent approach
    */
   async validatePrediction(
     tx: Transaction,
-    prediction: PredictionToValidate
+    prediction: PredictionToValidate,
   ): Promise<ValidationResult> {
     const goalText = await this.extractGoalText(tx, prediction);
 
@@ -212,32 +221,110 @@ export class Validator {
       };
     }
 
-    // Perform web search
-    const searchResult = await searchWeb(goalText);
+    const queryEnhancer = new QueryEnhancer();
+    const resultJudge = new ResultJudge();
 
-    if (!searchResult) {
+    const NUM_QUERIES = 3;
+    const RESULTS_PER_QUERY = 10;
+
+    console.log(
+      `[Validation] Starting parallel validation for prediction ${prediction.parsedPrediction.id}`,
+    );
+    console.log(`[Validation]   Goal: "${goalText}"`);
+
+    // Build rich context for query generation
+    const context = {
+      goalText,
+      fullTweet: prediction.scrapedTweet.text,
+      predictionContext: prediction.parsedPredictionDetails.predictionContext,
+      briefRationale: prediction.parsedPrediction.briefRationale,
+      timeframeEnd: prediction.parsedPredictionDetails.timeframeEndUtc,
+    };
+
+    // Step 1: Generate 3 diverse queries in parallel
+    console.log(
+      `[Validation] Step 1: Generating ${NUM_QUERIES} diverse queries in parallel...`,
+    );
+    const enhancedQueries = await queryEnhancer.enhanceMultiple(
+      context,
+      NUM_QUERIES,
+    );
+
+    enhancedQueries.forEach((query, index) => {
+      console.log(`[Validation]   Query ${index + 1}: "${query}"`);
+    });
+
+    // Step 2: Search all queries in parallel
+    console.log(
+      `[Validation] Step 2: Searching all ${NUM_QUERIES} queries in parallel...`,
+    );
+    const searchPromises = enhancedQueries.map((query) =>
+      searchMultiple(query, RESULTS_PER_QUERY),
+    );
+    const allResultSets = await Promise.all(searchPromises);
+
+    // Combine all results
+    const combinedResults = allResultSets.flat();
+    console.log(
+      `[Validation]   Total results found: ${combinedResults.length}`,
+    );
+
+    if (combinedResults.length === 0) {
       return {
         prediction_id: prediction.parsedPrediction.id,
         outcome: "MissingContext",
-        proof: "No search results found for the prediction claim",
+        proof: "No search results found across all query variations",
         sources: [],
       };
     }
 
-    // For now, return the first result as a simple validation
-    // TODO: Implement more sophisticated validation logic
+    // Step 3: Single judgment on all combined results
+    console.log(
+      `[Validation] Step 3: Evaluating all ${combinedResults.length} results...`,
+    );
+    const judgment = await resultJudge.evaluate(goalText, combinedResults);
+    console.log(
+      `[Validation]   Judgment: ${judgment.decision} (score: ${judgment.score})`,
+    );
+    console.log(`[Validation]   Summary: ${judgment.summary}`);
+
+    // Step 4: Map score to outcome (including Mostly variants)
+    let outcome: ValidationResult["outcome"];
+
+    if (judgment.decision === "TRUE") {
+      outcome = judgment.score >= 9 ? "MaturedTrue" : "MaturedMostlyTrue";
+    } else if (judgment.decision === "FALSE") {
+      outcome = judgment.score <= 2 ? "MaturedFalse" : "MaturedMostlyFalse";
+    } else {
+      // INCONCLUSIVE
+      outcome = "MissingContext";
+    }
+
+    // Step 5: Format proof as structured markdown
+    let proof = judgment.summary;
+
+    if (judgment.evidence) {
+      proof += `\n\n${judgment.evidence}`;
+    }
+
+    if (judgment.reasoning) {
+      proof += `\n\nReasoning: ${judgment.reasoning}`;
+    }
+
+    // Ensure proof fits in 700 characters
+    proof = truncateText(proof, 700);
+
+    // Step 6: Return result
+    const sources =
+      judgment.decision !== "INCONCLUSIVE"
+        ? combinedResults.slice(0, 2) // Top 2 sources for conclusive results
+        : []; // No sources for inconclusive results
+
     return {
       prediction_id: prediction.parsedPrediction.id,
-      outcome: "MaturedTrue", // Placeholder - needs actual validation logic
-      proof: `Found evidence: ${searchResult.title}`,
-      sources: [
-        {
-          url: searchResult.url,
-          title: searchResult.title,
-          excerpt: searchResult.excerpt,
-          pub_date: searchResult.pub_date,
-        },
-      ],
+      outcome,
+      proof,
+      sources,
     };
   }
 }

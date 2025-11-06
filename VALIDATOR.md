@@ -36,8 +36,8 @@ interface PredictionToValidate {
   parsedPrediction: {
     id: uuid;
     predictionId: uuid;
-    goal: PostSlice[];        // Extracted prediction goal
-    timeframe: PostSlice[];   // Timeframe references
+    goal: PostSlice[]; // Extracted prediction goal
+    timeframe: PostSlice[]; // Timeframe references
     topicId: uuid;
   };
   parsedPredictionDetails: {
@@ -71,7 +71,7 @@ interface ValidationResult {
     | "NotMatured"
     | "MissingContext"
     | "Invalid";
-  proof: string;  // ≤7 lines markdown: 1 summary + 2-4 bullets + reasoning
+  proof: string; // ≤7 lines markdown: 1 summary + 2-4 bullets + reasoning
   sources: Array<{
     url: string;
     title: string;
@@ -110,6 +110,7 @@ async getNextPredictionToValidate(tx: Transaction) {
 ```
 
 **Criteria**:
+
 - `timeframe_end_utc` is not null and ≤ today (prediction has matured)
 - No `validation_result` exists yet
 - Uses `FOR UPDATE SKIP LOCKED` for concurrent worker safety
@@ -135,52 +136,93 @@ extractGoalText(prediction: PredictionToValidate): string {
 ```
 
 **Example**:
+
 - Tweet: "I predict Bitcoin will hit $100k by end of Q1 2025! 🚀"
 - Goal slices: `[{start: 10, end: 54}]`
 - Extracted: "Bitcoin will hit $100k by end of Q1 2025"
 
-### Stage 3: Web Search
+### Stage 3: Query Enhancement (LLM Agent #1)
 
-**Goal**: Find evidence on the web for or against the prediction
+**Goal**: Transform prediction goals into optimized search queries
+
+**Implementation**: Uses Gemini 2.5 Flash via OpenRouter
 
 ```typescript
-async searchWeb(query: string): Promise<SearchResult | null> {
-  const url = new URL("https://www.searchapi.io/api/v1/search");
-  url.searchParams.set("engine", "google");
-  url.searchParams.set("q", query);
-  url.searchParams.set("api_key", env.SEARCHAPI_API_KEY);
-
-  const response = await fetch(url.toString());
-  const data = await response.json();
-
-  return data.organic_results?.[0] || null;
-}
+const queryEnhancer = new QueryEnhancer();
+const enhancedQueries = await queryEnhancer.enhanceMultiple(goalText, 3);
+// Generates 3 diverse queries in parallel:
+// Query 1: Direct factual approach
+// Query 2: News/reports focused
+// Query 3: Alternative keywords
 ```
 
-**Currently**: Returns the **first organic search result** from Google via SearchAPI.io
+**Features**:
 
-**Future**: Will implement multi-query strategy, relevance scoring, and source credibility checks
+- Parallel generation of 3 diverse query variations
+- Each query approaches claim from different angle
+- Varies temperature (0.7, 0.8, 0.9) for diversity
+- Returns optimized queries designed for evidence discovery
 
-### Stage 4: Outcome Determination
+### Stage 4: Parallel Web Search
 
-**Goal**: Analyze search results and determine validation outcome
+**Goal**: Gather comprehensive evidence from multiple search queries
 
-**Current (MVP)**: Simple placeholder logic
+**Implementation**: Searches all 3 queries concurrently
+
 ```typescript
-// For now, returns MaturedTrue if evidence found
-return {
-  prediction_id: prediction.parsedPrediction.id,
-  outcome: searchResult ? "MaturedTrue" : "MissingContext",
-  proof: `Found evidence: ${searchResult.title}`,
-  sources: [searchResult]
-};
+const searchPromises = enhancedQueries.map(
+  ({ query }) => searchMultiple(query, 10), // 10 results per query
+);
+const allResultSets = await Promise.all(searchPromises);
+const combinedResults = allResultSets.flat(); // ~30 total results
 ```
 
-**Future**: Will implement:
-- Evidence analysis (supporting vs refuting)
-- Confidence scoring
-- Multi-source aggregation
-- Nuanced outcomes (MostlyTrue, MostlyFalse)
+**Features**:
+
+- 3 parallel searches (using SearchAPI.io with Google)
+- 10 results per query = up to 30 total results
+- Executes in ~2-3 seconds (parallel I/O)
+- Combines all results for comprehensive evaluation
+
+### Stage 5: Result Judgment (LLM Agent #2)
+
+**Goal**: Evaluate all evidence and determine validation outcome
+
+**Implementation**: Uses Gemini 2.5 Flash via OpenRouter
+
+```typescript
+const resultJudge = new ResultJudge();
+const judgment = await resultJudge.evaluate(goalText, combinedResults);
+// Returns: { decision, score, summary, evidence, reasoning }
+```
+
+**Scoring System**:
+
+- Score 9-10: Clear confirmation (multiple credible sources)
+- Score 7-8: Strong confirmation (at least one credible source)
+- Score 4-6: Vague prediction OR inconclusive evidence
+- Score 2-3: Strong refutation
+- Score 0-1: Clear refutation
+
+**Decision Mapping**:
+
+- TRUE decision + score >= 9 → `MaturedTrue`
+- TRUE decision + score 7-8 → `MaturedMostlyTrue`
+- FALSE decision + score <= 2 → `MaturedFalse`
+- FALSE decision + score 3-4 → `MaturedMostlyFalse`
+- INCONCLUSIVE (score 4-6) → `MissingContext`
+
+**Proof Format** (structured markdown):
+
+```markdown
+Summary line of validation result.
+
+• Evidence bullet 1 with specific finding
+• Evidence bullet 2 with specific finding
+• Evidence bullet 3 (if applicable)
+
+Reasoning: Optional one-line explanation.
+```
 
 ### Stage 5: Storage
 
@@ -198,6 +240,7 @@ async storeValidationResult(tx: Transaction, result: ValidationResult) {
 ```
 
 **Table**: `validation_result`
+
 - Stores validation outcome and evidence
 - Indexed on `parsed_prediction_id` for fast lookups
 - Prevents duplicate validation via `notExists()` check in query
@@ -231,294 +274,149 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
 }
 ```
 
-**Key Features**:
-- **Concurrent workers**: Multiple workers can run in parallel
-- **Transaction isolation**: Each prediction validated in atomic transaction
-- **Row-level locking**: `FOR UPDATE SKIP LOCKED` prevents race conditions
-- **Graceful shutdown**: SIGINT/SIGTERM handling
-- **AsyncLocalStorage**: Worker ID tracking for logging
-
 ### Concurrency Strategy
 
 ```typescript
 // Start multiple workers
 async function runValidator(concurrency: number = 1) {
   const workers = Array.from({ length: concurrency }, (_, i) =>
-    runWorker(i + 1, () => shouldStop)
+    runWorker(i + 1, () => shouldStop),
   );
   await Promise.all(workers);
 }
 ```
 
 **Benefits**:
+
 - Horizontal scaling: Add more workers to increase throughput
 - Fault tolerance: One worker crash doesn't affect others
 - Load balancing: Workers automatically grab next available prediction
 
 ---
 
-## Current Implementation (MVP)
+## LLM Integration Architecture
 
-### What's Working ✅
+### OpenRouter Integration
 
-1. **Database Integration**
-   - Connects to PostgreSQL with Drizzle ORM
-   - Proper UUID handling
-   - SSL certificate handling for remote databases
+All LLM calls go through OpenRouter API using the OpenAI SDK format:
 
-2. **Query Logic**
-   - Finds matured predictions correctly
-   - Excludes already-validated predictions
-   - Row-level locking for concurrent workers
-
-3. **Search Integration**
-   - Calls SearchAPI.io with Google engine
-   - Extracts first organic result
-   - Returns structured search result
-
-4. **Worker Architecture**
-   - Single worker polling loop
-   - Transaction-based processing
-   - Error handling with retry
-
-5. **Logging**
-   - Worker ID prefixes
-   - Prediction details (ID, tweet preview, goal, search query)
-   - Validation outcome logging
-
-### What's Pending ⏳
-
-1. **Smart Outcome Determination**
-   - Currently returns placeholder "MaturedTrue"
-   - Needs: Evidence analysis, confidence scoring, nuanced outcomes
-
-2. **Multi-Source Search**
-   - Currently uses only first result
-   - Needs: Multiple queries, source aggregation, credibility weighting
-
-3. **Proof Generation**
-   - Currently simple single-line proof
-   - Needs: Structured markdown (summary + bullets + reasoning)
-
-4. **Advanced Query Construction**
-   - Currently uses raw goal text
-   - Needs: Entity extraction, query variations, date filtering
-
-5. **Error Recovery**
-   - Basic retry with 5s delay
-   - Needs: Exponential backoff, error categorization, alerting
-
----
-
-## Future Improvements
-
-### Phase 1: Enhanced Evidence Gathering
-
-**Multi-Query Strategy**
 ```typescript
-function generateSearchQueries(goal: string, timeframe: Timeframe): string[] {
-  return [
-    goal,                                    // Base query
-    `${goal} news`,                          // News-focused
-    `${goal} ${timeframe.end.getFullYear()}`, // Time-scoped
-    `did ${goal} happen`,                    // Direct question
-  ];
-}
+const client = new OpenAI({
+  baseURL: "https://openrouter.ai/api/v1",
+  apiKey: env.OPENROUTER_API_KEY,
+});
 ```
 
-**Source Diversity**
-- News sites (credible journalism)
-- Official sources (company announcements, government data)
-- Market data APIs (for price/number predictions)
-- Social proof (multiple independent reports)
+### Agent #1: Query Enhancer
 
-**Relevance Scoring**
-```typescript
-interface ScoredSource {
-  source: SearchResult;
-  relevanceScore: number;  // 0-1
-  credibilityScore: number; // 0-1
-  recencyScore: number;     // 0-1
-  overallScore: number;     // Weighted average
-}
-```
-
-### Phase 2: Intelligent Outcome Logic
-
-**Evidence Classification**
-```typescript
-enum EvidenceType {
-  SUPPORTING = "supporting",    // Confirms prediction
-  REFUTING = "refuting",        // Contradicts prediction
-  NEUTRAL = "neutral",          // Neither confirms nor denies
-  INSUFFICIENT = "insufficient" // Not enough info
-}
-```
-
-**Outcome Rules**
-```
-MaturedTrue:       ≥80% supporting evidence, high confidence
-MaturedMostlyTrue: 60-79% supporting evidence
-MaturedFalse:      ≥80% refuting evidence, high confidence
-MaturedMostlyFalse: 60-79% refuting evidence
-MissingContext:    <60% confidence or conflicting evidence
-NotMatured:        Timeframe hasn't ended (should not reach validator)
-Invalid:           Malformed prediction or data integrity issues
-```
-
-### Phase 3: Proof Generation
-
-**Format**:
-```markdown
-Summary: Bitcoin reached $105,000 on January 15, 2025.
-
-Evidence:
-• CoinDesk reported BTC at $105,234 on Jan 15, 2025
-• Bloomberg confirmed the milestone with market data
-• Multiple exchanges showed prices above $100k
-
-Reasoning: Prediction was accurate within specified timeframe.
-```
+**Model**: Gemini 2.5 Flash (`google/gemini-2.5-flash`)
+**Role**: Transform prediction goals into effective search queries
+**Prompt**: Loaded from `QUERY_ENHANCER_PROMPT.md`
 
 **Implementation**:
-```typescript
-function generateProof(
-  prediction: string,
-  evidence: ScoredSource[],
-  outcome: ValidationOutcome
-): string {
-  const summary = generateSummary(prediction, outcome);
-  const bullets = evidence
-    .slice(0, 4)
-    .map(e => `• ${e.source.title} (${e.source.pub_date})`);
-  const reasoning = generateReasoning(outcome, evidence);
 
-  return `${summary}\n\nEvidence:\n${bullets.join('\n')}\n\n${reasoning}`;
-}
+- Generates 3 diverse queries in parallel
+- Each query approaches claim from different angle
+- Temperature variation for diversity (0.7, 0.8, 0.9)
+- Returns clean search queries without extra text
+
+**Example**:
+
+```
+Input: "England would no longer exist"
+Output:
+  Query 1: "England no longer exist prediction"
+  Query 2: "Paul Ehrlich England 2000 prediction news"
+  Query 3: "UK existence prediction wrong"
 ```
 
-### Phase 4: Cost Optimization
+### Agent #2: Result Judge
 
-**Search Result Caching**
-```typescript
-// Cache search results by query + date range
-const cacheKey = `${query}:${dateRange}`;
-const cached = await redis.get(cacheKey);
-if (cached) return JSON.parse(cached);
+**Model**: Gemini 2.5 Flash (`google/gemini-2.5-flash`)
+**Role**: Evaluate search results and determine validation outcome
+**Prompt**: Loaded from `RESULT_JUDGE_PROMPT.md`
+
+**Implementation**:
+
+- Evaluates up to 30 search results at once
+- Returns 0-10 score with decision (TRUE/FALSE/INCONCLUSIVE)
+- Generates structured markdown proof (summary + bullets + reasoning)
+- Handles vague predictions (scores them 0-2)
+
+**Example**:
+
+```
+Input: Goal + 30 search results
+Output:
+  Score: 9
+  Decision: TRUE
+  Summary: "Bitcoin closed above $100k on August 3, 2025"
+  Evidence: "• CoinGecko data shows $100,234..."
+  Reasoning: "Threshold met with verifiable data"
 ```
 
-**Batch Processing**
-- Group predictions by topic
-- Reuse search results across similar predictions
-- Priority queue for high-value predictions
+### Prompt Management
 
-**Rate Limiting**
-- Respect SearchAPI.io rate limits
-- Exponential backoff on API errors
-- Fallback to cached data when available
+System prompts are stored as markdown files at the repository root:
+
+- `QUERY_ENHANCER_PROMPT.md` - Query optimization guidelines
+- `RESULT_JUDGE_PROMPT.md` - Evidence evaluation criteria with examples
+
+Prompts are loaded at module initialization using Node.js file system operations:
+
+```typescript
+import { readFile } from "node:fs/promises";
+export const QUERY_ENHANCER_SYSTEM_PROMPT = await loadPrompt(
+  "QUERY_ENHANCER_PROMPT.md",
+);
+```
 
 ---
 
 ## Edge Cases
 
 ### Case 1: Ambiguous Evidence
+
 **Scenario**: Search returns conflicting information
 **Example**: "BTC will hit $100k" but sources disagree (some say $99k peak, others $101k)
 **Solution**: Use `MaturedMostlyTrue` with confidence score, cite conflicting sources
 
 ### Case 2: No Search Results
+
 **Scenario**: Query returns no organic results
 **Example**: Very niche prediction with no web coverage
 **Solution**: Mark as `MissingContext`, log for manual review
 
 ### Case 3: Outdated Information
+
 **Scenario**: Search returns old data, not from timeframe
 **Example**: Searching "Tesla stock price Q1 2025" returns 2024 data
 **Solution**: Filter by `pub_date`, require sources from timeframe period or after
 
 ### Case 4: Precision Issues
+
 **Scenario**: Prediction has specific number, evidence is approximate
 **Example**: "BTC will hit $100,000" vs sources reporting "$99,800-$100,200 range"
 **Solution**: Define tolerance ranges (±2% for prices), mark as True within tolerance
 
 ### Case 5: Multi-Part Predictions
+
 **Scenario**: Prediction has multiple conditions (AND/OR logic)
 **Example**: "BTC > $100k AND ETH > $5k by Q1 2025"
 **Solution**: Search each part independently, combine results with logical operators
 
 ---
 
-## Monitoring and Metrics
-
-### Success Metrics
-
-1. **Validation Coverage**: % of verdicts that get validated
-   - Target: >95% of matured predictions validated within 24h
-
-2. **Evidence Quality**: % of validations with ≥2 credible sources
-   - Target: >80% have multiple sources
-
-3. **Outcome Accuracy**: Agreement rate with manual review
-   - Target: >90% match human judgment
-
-4. **Latency**: Time from maturity to validation
-   - Target: <1 hour for recent predictions
-
-5. **Cost Efficiency**: Average cost per validation
-   - Target: <$0.01 per validation (SearchAPI.io + compute)
-
-### Monitoring Dashboard
-
-```typescript
-interface ValidatorMetrics {
-  validationsCompleted: number;
-  validationsPerHour: number;
-  outcomeDistribution: Record<ValidationOutcome, number>;
-  averageSourcesPerValidation: number;
-  searchAPIErrors: number;
-  processingErrors: number;
-  averageProcessingTime: number; // milliseconds
-}
-```
-
----
-
-## Cost Analysis
-
-### SearchAPI.io Pricing
-- **Free tier**: 100 searches/month
-- **Paid**: ~$0.002 per search (Serper.dev pricing)
-- **Monthly estimate**: 10,000 predictions × $0.002 = $20/month
-
-### Optimization Strategies
-
-1. **Result Caching**:
-   - Cache similar queries (e.g., "BTC price Q1 2025")
-   - Reduce duplicate searches by ~40%
-   - Savings: ~$8/month
-
-2. **Batch Processing**:
-   - Group predictions by topic/entity
-   - Reuse search results across predictions
-   - Savings: ~$5/month
-
-3. **Smart Querying**:
-   - Skip validation for low-priority predictions
-   - Prioritize high-stakes/high-engagement predictions
-   - Savings: Variable
-
-**Total estimated cost**: $20/month (unoptimized) → $7-10/month (optimized)
-
----
-
 ## Integration Points
 
 ### Upstream: Verifier
+
 - **Input**: Predictions with verdicts from `verdict` table
 - **Dependency**: Requires `timeframe_end_utc` to be set
 - **Schema**: Shares `parsed_prediction`, `parsed_prediction_details`, `verdict` tables
 
 ### Downstream: Analytics/UI
+
 - **Output**: Validation results in `validation_result` table
 - **Query pattern**:
   ```sql
@@ -531,6 +429,7 @@ interface ValidatorMetrics {
   ```
 
 ### External: SearchAPI.io
+
 - **API**: https://www.searchapi.io/
 - **Auth**: API key in `SEARCHAPI_API_KEY` env var
 - **Rate limits**: Depends on pricing tier
@@ -538,71 +437,24 @@ interface ValidatorMetrics {
 
 ---
 
-## Development Roadmap
+## Technology Stack
 
-### ✅ Phase 0: MVP (Current)
-- [x] Database schema and connection
-- [x] Query logic for matured predictions
-- [x] SearchAPI.io integration (first result)
-- [x] Basic worker architecture
-- [x] Result storage
-- [x] Logging and debugging
+**Database**: PostgreSQL with Drizzle ORM
+**LLM Provider**: OpenRouter
+**Search API**: SearchAPI.io (Google)
+**Models**:
 
-### 🚧 Phase 1: Core Validation (Next)
-- [ ] Multi-query search strategy
-- [ ] Evidence classification (supporting/refuting/neutral)
-- [ ] Outcome determination logic
-- [ ] Structured proof generation
-- [ ] Source credibility scoring
-
-### 📋 Phase 2: Production Readiness
-- [ ] Error handling and retry logic
-- [ ] Monitoring and alerting
-- [ ] Cost tracking
-- [ ] Search result caching
-- [ ] Rate limiting
-- [ ] API fallbacks
-
-### 🚀 Phase 3: Advanced Features
-- [ ] Multi-source aggregation
-- [ ] Market data API integration
-- [ ] Confidence scoring
-- [ ] Manual review queue
-- [ ] A/B testing framework
-- [ ] Validation quality feedback loop
-
----
-
-## Technical Decisions
-
-### Why SearchAPI.io?
-- **Pro**: Simple REST API, good Google results, affordable
-- **Con**: Rate limits, no built-in caching, single source dependency
-- **Alternative considered**: SerpAPI (more expensive), Brave Search (less coverage)
-
-### Why Single Worker (MVP)?
-- **Simplicity**: Easier to debug and monitor
-- **Cost control**: Avoid API rate limit issues
-- **Scalability**: Can increase to N workers with config change
-- **Future**: Will scale to 3-5 workers in production
-
-### Why Store Everything?
-- **Auditability**: Can review validation decisions
-- **Analytics**: Track outcome distribution, source quality
-- **Debugging**: Reproduce validation logic on historical data
-- **Training data**: Use validated predictions for ML models
-
-### Why Placeholder Outcomes?
-- **Iterative development**: Get pipeline working end-to-end first
-- **Data collection**: Gather real search results before optimizing logic
-- **Risk mitigation**: Avoid premature optimization
-- **Learning**: Understand data patterns before building complex rules
+- Query Enhancer: Gemini 2.5 Flash
+- Result Judge: Gemini 2.5 Flash
+  **Runtime**: Node.js with TypeScript (ESM modules)
+  **Concurrency**: Single worker (configurable)
 
 ---
 
 ## Running the Validator
 
 ### Prerequisites
+
 ```bash
 # Install dependencies
 npm install
@@ -616,6 +468,7 @@ cp .env.example .env
 ```
 
 ### Development
+
 ```bash
 # Run with auto-reload
 npm run dev
@@ -628,6 +481,7 @@ npm run lint
 ```
 
 ### Production
+
 ```bash
 # Build
 npm run build
@@ -637,6 +491,7 @@ npm start
 ```
 
 ### Monitoring
+
 ```bash
 # Check validation results
 psql $POSTGRES_URL -c "SELECT outcome, COUNT(*) FROM validation_result GROUP BY outcome;"
@@ -649,10 +504,14 @@ psql $POSTGRES_URL -c "SELECT * FROM validation_result ORDER BY created_at DESC 
 
 ## Summary
 
-The **Validator** is a critical quality assurance layer that independently verifies prediction outcomes using real-time web search. It operates as the final stage in the prediction pipeline, ensuring that verdicts from the Verifier are accurate and well-supported by evidence.
+The Validator is the fourth stage in the Torus prediction pipeline. It validates prediction outcomes using a multi-agent LLM system combined with web search.
 
-**Current State**: MVP with basic search integration and placeholder outcome logic
-**Next Steps**: Implement multi-source evidence gathering and intelligent outcome determination
-**Timeline**: Core validation logic in 1-2 weeks, production-ready in 3-4 weeks
+**Architecture**:
 
-**Key Principle**: Start simple, measure everything, iterate based on data.
+- LLM integration: Gemini 2.5 Flash via OpenRouter for both query enhancement and evidence evaluation
+- Parallel processing: 3 diverse queries generated and searched concurrently
+- Evidence gathering: Up to 30 search results from SearchAPI.io (Google)
+- Scoring system: 0-10 scale determines outcome (MaturedTrue, MaturedMostlyTrue, MaturedFalse, MaturedMostlyFalse, or MissingContext)
+- Output format: Structured markdown proof with summary, evidence bullets, and reasoning (max 2 sources)
+
+The validator processes matured predictions from the database, validates them through parallel web searches, and stores results in the validation_result table.

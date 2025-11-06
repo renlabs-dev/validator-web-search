@@ -14,14 +14,19 @@ const globalForDb = globalThis as unknown as GlobalForDb;
 export function createDb() {
   // Parse the connection string to check if SSL is required
   const url = new URL(env.POSTGRES_URL);
-  const sslMode = url.searchParams.get('sslmode');
+  const sslMode = url.searchParams.get("sslmode");
 
-  const pool = globalForDb.pool ?? new Pool({
-    connectionString: env.POSTGRES_URL,
-    ssl: sslMode === 'require' ? {
-      rejectUnauthorized: false
-    } : undefined
-  });
+  const pool =
+    globalForDb.pool ??
+    new Pool({
+      connectionString: env.POSTGRES_URL,
+      ssl:
+        sslMode === "require"
+          ? {
+              rejectUnauthorized: false,
+            }
+          : undefined,
+    });
 
   if (env.NODE_ENV !== "production") {
     globalForDb.pool = pool;

@@ -9,6 +9,7 @@ export const env = createEnv({
       .default("development"),
     POSTGRES_URL: z.string().url(),
     SEARCHAPI_API_KEY: z.string(),
+    OPENROUTER_API_KEY: z.string(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
