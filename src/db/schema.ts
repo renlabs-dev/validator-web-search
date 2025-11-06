@@ -1,4 +1,16 @@
-import { pgTable, varchar, timestamp, jsonb, decimal, integer, boolean, bigint, index, uuid, text } from "drizzle-orm/pg-core";
+import {
+  pgTable,
+  varchar,
+  timestamp,
+  jsonb,
+  decimal,
+  integer,
+  boolean,
+  bigint,
+  index,
+  uuid,
+  text,
+} from "drizzle-orm/pg-core";
 
 // Parsed prediction table
 export const parsedPrediction = pgTable(
@@ -15,13 +27,19 @@ export const parsedPrediction = pgTable(
     vagueness: decimal("vagueness"),
     context: jsonb("context"),
     filterAgentId: varchar("filter_agent_id", { length: 48 }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
-    predictionIdIdx: index("parsed_prediction_prediction_id_idx").on(table.predictionId),
+    predictionIdIdx: index("parsed_prediction_prediction_id_idx").on(
+      table.predictionId,
+    ),
     createdAtIdx: index("parsed_prediction_created_at_idx").on(table.createdAt),
-  })
+  }),
 );
 
 // Parsed prediction details table
@@ -38,15 +56,23 @@ export const parsedPredictionDetails = pgTable(
     timeframeAssumptions: jsonb("timeframe_assumptions"),
     timeframeConfidence: decimal("timeframe_confidence"),
     filterValidationConfidence: decimal("filter_validation_confidence"),
-    filterValidationReasoning: varchar("filter_validation_reasoning", { length: 2000 }),
+    filterValidationReasoning: varchar("filter_validation_reasoning", {
+      length: 2000,
+    }),
     verdictConfidence: decimal("verdict_confidence"),
     verdictSources: jsonb("verdict_sources"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
-    timeframeEndUtcIdx: index("parsed_prediction_details_timeframe_end_utc_idx").on(table.timeframeEndUtc),
-  })
+    timeframeEndUtcIdx: index(
+      "parsed_prediction_details_timeframe_end_utc_idx",
+    ).on(table.timeframeEndUtc),
+  }),
 );
 
 // Verdict table
@@ -57,64 +83,80 @@ export const verdict = pgTable(
     parsedPredictionId: uuid("parsed_prediction_id").notNull(),
     verdict: boolean("verdict").notNull(),
     context: jsonb("context"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
-    parsedPredictionIdIdx: index("verdict_parsed_prediction_id_idx").on(table.parsedPredictionId),
-  })
+    parsedPredictionIdIdx: index("verdict_parsed_prediction_id_idx").on(
+      table.parsedPredictionId,
+    ),
+  }),
 );
 
 // Parsed prediction feedback table
-export const parsedPredictionFeedback = pgTable(
-  "parsed_prediction_feedback",
-  {
-    parsedPredictionId: uuid("parsed_prediction_id").primaryKey(),
-    validationStep: varchar("validation_step", { length: 50 }),
-    failureCause: varchar("failure_cause", { length: 50 }),
-    reason: varchar("reason", { length: 2000 }),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  }
-);
+export const parsedPredictionFeedback = pgTable("parsed_prediction_feedback", {
+  parsedPredictionId: uuid("parsed_prediction_id").primaryKey(),
+  validationStep: varchar("validation_step", { length: 50 }),
+  failureCause: varchar("failure_cause", { length: 50 }),
+  reason: varchar("reason", { length: 2000 }),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 // Scraped tweet table (for joining)
-export const scrapedTweet = pgTable(
-  "scraped_tweet",
-  {
-    id: bigint("id", { mode: "bigint" }).primaryKey(),
-    text: varchar("text", { length: 25000 }).notNull(),
-    authorId: bigint("author_id", { mode: "bigint" }).notNull(),
-    date: timestamp("date", { withTimezone: true }).notNull(),
-    conversationId: bigint("conversation_id", { mode: "bigint" }),
-    parentTweetId: bigint("parent_tweet_id", { mode: "bigint" }),
-    predictionId: uuid("prediction_id"),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
-  }
-);
+export const scrapedTweet = pgTable("scraped_tweet", {
+  id: bigint("id", { mode: "bigint" }).primaryKey(),
+  text: varchar("text", { length: 25000 }).notNull(),
+  authorId: bigint("author_id", { mode: "bigint" }).notNull(),
+  date: timestamp("date", { withTimezone: true }).notNull(),
+  conversationId: bigint("conversation_id", { mode: "bigint" }),
+  parentTweetId: bigint("parent_tweet_id", { mode: "bigint" }),
+  predictionId: uuid("prediction_id"),
+  createdAt: timestamp("created_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true })
+    .defaultNow()
+    .notNull(),
+});
 
 // Validation result table (our output)
 export const validationResult = pgTable(
   "validation_result",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    parsedPredictionId: uuid("parsed_prediction_id").notNull(),
+    parsedPredictionId: uuid("parsed_prediction_id").notNull().unique(),
     outcome: varchar("outcome", { length: 50 }).notNull(),
     proof: varchar("proof", { length: 700 }).notNull(),
     sources: jsonb("sources").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true }).defaultNow().notNull(),
-    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .defaultNow()
+      .notNull(),
   },
   (table) => ({
-    parsedPredictionIdIdx: index("validation_result_parsed_prediction_id_idx").on(table.parsedPredictionId),
-  })
+    parsedPredictionIdIdx: index(
+      "validation_result_parsed_prediction_id_idx",
+    ).on(table.parsedPredictionId),
+  }),
 );
 
 // Type exports
 export type ParsedPrediction = typeof parsedPrediction.$inferSelect;
-export type ParsedPredictionDetails = typeof parsedPredictionDetails.$inferSelect;
+export type ParsedPredictionDetails =
+  typeof parsedPredictionDetails.$inferSelect;
 export type Verdict = typeof verdict.$inferSelect;
-export type ParsedPredictionFeedback = typeof parsedPredictionFeedback.$inferSelect;
+export type ParsedPredictionFeedback =
+  typeof parsedPredictionFeedback.$inferSelect;
 export type ScrapedTweet = typeof scrapedTweet.$inferSelect;
 export type ValidationResult = typeof validationResult.$inferSelect;

@@ -33,17 +33,17 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
           const goalText = await validator.extractGoalText(tx, prediction);
           const tweetPreview = prediction.scrapedTweet.text.slice(0, 100);
 
+          log(`Processing prediction ${prediction.parsedPrediction.id}`);
           log(
-            `Processing prediction ${prediction.parsedPrediction.id}`
+            `  Tweet: "${tweetPreview}${prediction.scrapedTweet.text.length > 100 ? "..." : ""}"`,
           );
-          log(`  Tweet: "${tweetPreview}${prediction.scrapedTweet.text.length > 100 ? '...' : ''}"`);
           log(`  Goal: "${goalText}"`);
           log(`  Search query: "${goalText}"`);
 
           // Validate the prediction
           const validationResult = await validator.validatePrediction(
             tx,
-            prediction
+            prediction,
           );
 
           // Store the validation result
@@ -51,7 +51,7 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
 
           log(
             `Validation complete: ${validationResult.outcome}`,
-            validationResult
+            validationResult,
           );
 
           return validationResult;
@@ -76,26 +76,27 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
 async function runValidator(concurrency: number = 1) {
   let shouldStop = false;
 
-  // Handle graceful shutdown
+  // Handle shutdown
   process.on("SIGINT", () => {
-    console.log("\nReceived SIGINT, shutting down gracefully...");
+    console.log("\nReceived SIGINT, shutting down...");
     shouldStop = true;
   });
 
   process.on("SIGTERM", () => {
-    console.log("\nReceived SIGTERM, shutting down gracefully...");
+    console.log("\nReceived SIGTERM, shutting down...");
     shouldStop = true;
   });
 
   console.log(`Starting validator with ${concurrency} worker(s)...`);
 
   const workers = Array.from({ length: concurrency }, (_, i) =>
-    runWorker(i + 1, () => shouldStop)
+    runWorker(i + 1, () => shouldStop),
   );
 
   await Promise.all(workers);
 
   console.log("All workers stopped");
+  process.exit(0);
 }
 
 // Start the validator
