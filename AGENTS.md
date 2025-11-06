@@ -82,5 +82,3 @@ The user is a domain expert that will be able to assist you in these cases.
 
 - Tests: Vitest with small, focused cases. Type‑check tests. Aim for high coverage of public APIs.
 - Docs: concise TSDoc/JSDoc comments; runnable examples when useful.
-- Authoritative references: `VALIDATOR.md` and `doc/` (e.g., `doc/crawler-spec.md`).
-
