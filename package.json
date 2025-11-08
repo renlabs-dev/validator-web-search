@@ -11,6 +11,7 @@
     "build": "tsc",
     "clean": "rm -rf .turbo node_modules dist",
     "dev": "tsx ./src/index.ts",
+    "test:firecrawl": "tsx ./src/test/firecrawl.pipeline.ts",
     "format": "prettier --check . --cache",
     "format-fix": "prettier --write . --cache",
     "lint": "eslint --cache --cache-location .cache/.eslintcache",
@@ -20,6 +21,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "^1.8.2",
     "@t3-oss/env-core": "^0.11.1",
     "cors": "^2.8.5",
     "dotenv": "^17.2.3",

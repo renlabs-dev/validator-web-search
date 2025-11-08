@@ -2,7 +2,6 @@
 
 > using https://www.firecrawl.dev/
 
-
 ---
 
 ## Constants, weights, and budgets
@@ -13,7 +12,7 @@ CONST TOP_K_RESULTS      = 8          # inspect top-N SERP items each attempt
 CONST CRAWLS_PER_TURN    = 2          # at most 2 crawls per SERP turn (official + corroboration)
 CONST TOTAL_CRAWLS       = 4          # safety cap across the whole claim
 CONST MAX_HOPS_FROM_PAGE = 1          # optional single clickdown from hubs <- get rid of this
-CONST EMBED_CHUNKS_MAX   = 12         # make up to 12 chunks per page for rerank <- probably can get rid of this 
+CONST EMBED_CHUNKS_MAX   = 12         # make up to 12 chunks per page for rerank <- probably can get rid of this
 CONST EMBED_TAKE         = 3          # actually read top 3 chunks only <- probably can get rid of this
 CONST DATE_TOLERANCE_H   = 48         # allow ±48h between agreeing sources <- remove
 CONST AGREEMENT_SCORE    = 1.6        # sufficiency threshold for source weights
@@ -46,7 +45,7 @@ type Evidence = {
   domain: string
   domain_type: enum("official","wire","trade","other")
   event_datetime_utc: datetime           # the occurrence date/time you will compare to timeframe
-  extraction: enum("snippet","structured","embedding","tablepdf","clickdown") <- useless 
+  extraction: enum("snippet","structured","embedding","tablepdf","clickdown") <- useless
   note: string                           # small “where found” (e.g., JSON-LD datePublished, "Decision date: ...")
 }
 
@@ -74,7 +73,7 @@ function verify_claim_with_serper(claim: Claim, now_utc: datetime) -> Outcome:
         # Ask tiny model to decide from snippets alone, or tell us which 2 URLs to crawl.
         gate = snippet_gate(serp, claim)
 
-        if gate.status == "decide":  
+        if gate.status == "decide":
             # The model asserts 2 agreeing, dated, independent sources are in snippets.
             ev_from_snippets = extract_evidence_from_snippets(serp, claim)  # regex on snippet + date parsing
             evidence_list += ev_from_snippets
@@ -331,10 +330,10 @@ Class: <StateChange|Availability|Threshold|CompetitiveOutcome|EventRelative>
 For each item, you have: {title, snippet, url, domain}.
 
 Rules:
-- If there are 2 independent items (different domains) that each include an explicit event/result date, 
+- If there are 2 independent items (different domains) that each include an explicit event/result date,
   and the two dates agree within ±48 hours, and both look authoritative (official/wire/trade),
   return: {"status":"decide"}.
-- Otherwise, return {"status":"crawl","picks":[up to 3 urls]} choosing one official if present, 
+- Otherwise, return {"status":"crawl","picks":[up to 3 urls]} choosing one official if present,
   and one independent (wire/trade). Prefer items whose titles/URLs look like press releases, official results, orders, filings, PDFs.
 - If none of the top items are authoritative, return {"status":"refine"}.
 
@@ -359,4 +358,3 @@ log({
   latency_ms: stopwatch()
 })
 ```
-
