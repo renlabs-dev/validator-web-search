@@ -1,8 +1,6 @@
 import "dotenv/config";
-import { z } from "zod";
 import { env } from "../env.js";
 import { rankByEmbedding } from "../llm/embeddings.js";
-import { SerperSchema } from "./firecrawl.schemas.js";
 import { gatePicksWithLLM } from "./firecrawl.llm-gate.js";
 import { fetchWithEscalation, looksBlocked } from "./firecrawl.fetch.js";
 import { readSerperSample } from "./firecrawl.serp.js";
@@ -18,6 +16,8 @@ function debug(...args: unknown[]) {
 // moved to helpers
 
 import { stripHtml, chunkText } from "./firecrawl.text.js";
+import { summarizeRankedChunks } from "./firecrawl.summarize.js";
+import type { RankedForSource } from "./firecrawl.summarize.js";
 
 async function main(): Promise<void> {
   // 1) Load sample SERP
@@ -34,7 +34,7 @@ async function main(): Promise<void> {
   }
 
   // 2) Ask LLM gate to pick URLs to crawl
-  const picks = await gatePicksWithLLM(query, serp, 2);
+  const picks = await gatePicksWithLLM(query, serp, 3);
   console.log("Picked URLs:", picks);
 
   // 3) Crawl picked pages via ScraperAPI (if configured), else fallback to snippets
@@ -86,7 +86,8 @@ async function main(): Promise<void> {
         // Fallback: use snippet if no crawler configured
         const item = serp.find((r) => r.link === url);
         if (item) {
-          const fallback = item.snippet || item.title;
+          const datePart = item.date ? `${item.date} — ` : "";
+          const fallback = `${datePart}${item.snippet || item.title}`;
           debug("Fallback snippet used:", fallback);
           sources.push({ url, chunks: [fallback] });
         }
@@ -94,6 +95,38 @@ async function main(): Promise<void> {
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       console.warn(`Fetch failed for ${url}:`, msg);
+      // Fallback to SERP snippet when fetch fails
+      const item = serp.find((r) => r.link === url);
+      if (item) {
+        const datePart = item.date ? `${item.date} — ` : "";
+        const fallback = `${datePart}${item.snippet || item.title}`;
+        debug("Fallback snippet (fetch error) used:", fallback);
+        sources.push({ url, chunks: [fallback] });
+      }
+    }
+  }
+
+  // If we still have too few sources, supplement with additional SERP items' snippets
+  if (sources.length < 2) {
+    const pickedSet = new Set(picks);
+    const extras = serp
+      .filter((r) => !pickedSet.has(r.link))
+      .filter((r) => {
+        const s = `${r.title} ${r.link}`.toLowerCase();
+        return (
+          s.includes("history") ||
+          s.includes("historical") ||
+          s.includes("price") ||
+          s.includes("close") ||
+          s.includes("chart")
+        );
+      })
+      .slice(0, 3);
+    for (const r of extras) {
+      const datePart = r.date ? `${r.date} — ` : "";
+      const fallback = `${datePart}${r.snippet || r.title}`;
+      sources.push({ url: r.link, chunks: [fallback] });
+      if (sources.length >= 2) break;
     }
   }
 
@@ -105,6 +138,7 @@ async function main(): Promise<void> {
   // 4) Embedding rerank within each source
   const focus = `${query} — exact numeric price and date context`;
   debug("Embedding focus:", focus);
+  const rankedPerSource: RankedForSource[] = [];
   for (const src of sources) {
     debug("Embedding input chunks for", src.url, src.chunks);
     const ranked = await rankByEmbedding(focus, src.chunks);
@@ -114,6 +148,10 @@ async function main(): Promise<void> {
       const preview = r.text.slice(0, 240).replace(/\s+/g, " ");
       console.log(`- score=${r.score.toFixed(3)} :: ${preview}`);
     }
+    rankedPerSource.push({
+      url: src.url,
+      chunks: ranked.map((r) => ({ text: r.text, score: r.score })),
+    });
     if (DEBUG) {
       console.log("All ranked chunks:");
       ranked.forEach((r) => {
@@ -121,6 +159,36 @@ async function main(): Promise<void> {
         console.log(`  idx=${r.index} score=${r.score.toFixed(3)} :: ${prev}`);
       });
     }
+  }
+
+  // 5) Ask LLM for a precise, quoted summary of what the top chunks actually say
+  const now = new Date();
+  const anchorISO = now.toISOString().slice(0, 10); // YYYY-MM-DD
+  try {
+    const summary = await summarizeRankedChunks(
+      query,
+      rankedPerSource,
+      anchorISO,
+    );
+    console.log("\nAI Summary:");
+    console.log(
+      summary.answer ||
+        (summary.status === "insufficient"
+          ? "Insufficient evidence in provided snippets."
+          : ""),
+    );
+    if (summary.citations.length > 0) {
+      console.log("Citations:");
+      for (const c of summary.citations) {
+        console.log(`- ${c.url}`);
+        for (const q of c.quotes.slice(0, 3)) {
+          if (q) console.log(`  > ${q}`);
+        }
+      }
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.warn("AI Summary failed:", msg);
   }
 }
 

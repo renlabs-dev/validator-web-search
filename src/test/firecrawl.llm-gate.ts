@@ -16,7 +16,7 @@ function tryParseJSON(s: string): unknown | undefined {
   }
 }
 
-function extractJsonObject(text: string): unknown {
+export function extractJsonObject(text: string): unknown {
   const fence = text.match(/```(?:json)?\n([\s\S]*?)```/i);
   if (fence && typeof fence[1] === "string") {
     const got = tryParseJSON(fence[1]);

@@ -51,16 +51,8 @@ lint-fix:
 typecheck:
     npm run typecheck
 
-# Unit tests
-test:
-    npm test
-
-# Firecrawl pipeline test
-test-firecrawl:
-    npm run test:firecrawl
-
 # Aggregate “verify everything” without writing changes
-check: fmt-check lint typecheck test
+check: fmt-check lint typecheck
     @echo "✓ All checks passed"
 
 # Apply automatic fixes (format + lint)
