@@ -1,11 +1,17 @@
+import { htmlToText } from "html-to-text";
+
 export function stripHtml(html: string) {
-  const noScript = html.replace(/<script[\s\S]*?<\/script>/gi, " ");
-  const noStyle = noScript.replace(/<style[\s\S]*?<\/style>/gi, " ");
-  const text = noStyle
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  return text;
+  // Use industry-standard HTML -> text conversion; collapse whitespace for consistency
+  const text = htmlToText(html, {
+    wordwrap: false,
+    // html-to-text already skips <script> and <style> by default
+    selectors: [
+      { selector: "script", format: "skip" },
+      { selector: "style", format: "skip" },
+      { selector: "noscript", format: "skip" },
+    ],
+  });
+  return text.replace(/\s+/g, " ").trim();
 }
 
 export function chunkText(s: string, size = 800) {
