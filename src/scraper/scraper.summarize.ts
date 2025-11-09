@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { oneShot } from "../llm/openrouter.js";
-import { extractJsonObject } from "./firecrawl.llm-gate.js";
+import { extractJsonObject } from "./scraper.llm-gate.js";
 
 export type RankedForSource = {
   readonly url: string;

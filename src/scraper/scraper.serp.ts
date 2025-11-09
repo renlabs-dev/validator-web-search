@@ -1,5 +1,5 @@
 import { readFile } from "node:fs/promises";
-import { SerperSchema } from "./firecrawl.schemas.js";
+import { SerperSchema } from "./scraper.schemas.js";
 
 type RawSerp = {
   search_parameters?: { q?: unknown };

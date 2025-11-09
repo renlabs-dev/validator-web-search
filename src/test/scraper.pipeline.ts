@@ -1,9 +1,9 @@
 import "dotenv/config";
 import { env } from "../env.js";
 import { rankByEmbedding } from "../llm/embeddings.js";
-import { gatePicksWithLLM } from "./firecrawl.llm-gate.js";
-import { fetchWithEscalation, looksBlocked } from "./firecrawl.fetch.js";
-import { readSerperSample } from "./firecrawl.serp.js";
+import { gatePicksWithLLM } from "../scraper/scraper.llm-gate.js";
+import { fetchWithEscalation, looksBlocked } from "../scraper/scraper.fetch.js";
+import { readSerperSample } from "../scraper/scraper.serp.js";
 
 const DEBUG =
   process.env.FIRECRAWL_DEBUG === "1" || process.argv.includes("--debug");
@@ -15,9 +15,9 @@ function debug(...args: unknown[]) {
 // redactUrl no longer needed here
 // moved to helpers
 
-import { stripHtml, chunkText } from "./firecrawl.text.js";
-import { summarizeRankedChunks } from "./firecrawl.summarize.js";
-import type { RankedForSource } from "./firecrawl.summarize.js";
+import { stripHtml, chunkText } from "../scraper/scraper.text.js";
+import { summarizeRankedChunks } from "../scraper/scraper.summarize.js";
+import type { RankedForSource } from "../scraper/scraper.summarize.js";
 
 async function main(): Promise<void> {
   // 1) Load sample SERP
@@ -230,6 +230,6 @@ async function main(): Promise<void> {
 
 main().catch((err: unknown) => {
   const message = err instanceof Error ? err.message : String(err);
-  console.error("firecrawl pipeline test failed:", message);
+  console.error("scraper pipeline test failed:", message);
   process.exit(1);
 });

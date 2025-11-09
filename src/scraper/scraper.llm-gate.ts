@@ -1,5 +1,5 @@
-import { PicksSchema } from "./firecrawl.schemas.js";
-import type { SerpItem } from "./firecrawl.schemas.js";
+import { PicksSchema } from "./scraper.schemas.js";
+import type { SerpItem } from "./scraper.schemas.js";
 import { oneShot } from "../llm/openrouter.js";
 
 const DEBUG =
