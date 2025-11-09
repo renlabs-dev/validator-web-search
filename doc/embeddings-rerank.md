@@ -1,6 +1,6 @@
 # Embeddings + Rerank Flow (Deep Dive)
 
-This document explains, in detail, how the firecrawl test pipeline embeds and reranks content after scraping, and how the ranked snippets are handed to the judge LLM. The goal is to keep the process efficient, deterministic, and easy to tune.
+This document explains, in detail, how the scraper test pipeline embeds and reranks content after scraping, and how the ranked snippets are handed to the judge LLM. The goal is to keep the process efficient, deterministic, and easy to tune.
 
 ## High-Level Flow
 
@@ -19,7 +19,7 @@ This document explains, in detail, how the firecrawl test pipeline embeds and re
 
 Relevant utility:
 
-- `src/test/firecrawl.text.ts:1`
+- `src/scraper/scraper.text.ts:1`
 
 ```ts
 export function stripHtml(html: string) {
@@ -32,7 +32,7 @@ export function chunkText(s: string, size = 800) {
 
 Where it’s used in the pipeline:
 
-- `src/test/firecrawl.pipeline.ts:113` (strip to text), `src/test/firecrawl.pipeline.ts:115` (chunk to 1200, slice to 12)
+- `src/test/scraper.pipeline.ts` (strip to text then chunk to 1200, capped to 12)
 
 ```ts
 const text = stripHtml(page.html);
@@ -92,7 +92,7 @@ Notes:
 
 We focus the embedding similarity on the concrete numeric/date signal we care about. The pipeline builds a concise focus string:
 
-- `src/test/firecrawl.pipeline.ts:51`
+- `src/test/scraper.pipeline.ts`
 
 ```ts
 const focus = `${query} — exact numeric price and date context`;
@@ -104,7 +104,7 @@ This tends to lift price tables or historical series snippets above boilerplate 
 
 For each source (sequentially), we run embeddings and sort. We print a short preview of the best 3 and forward all ranked chunks to the judge (to preserve recall while keeping the judge’s input bounded per source):
 
-- `src/test/firecrawl.pipeline.ts:151`
+- `src/test/scraper.pipeline.ts`
 
 ```ts
 const ranked = await rankByEmbedding(focus, source.chunks);
@@ -118,7 +118,7 @@ for (const r of top) {
 
 We then build the judge payload for exactly this source:
 
-- `src/test/firecrawl.pipeline.ts:171`
+- `src/test/scraper.pipeline.ts`
 
 ```ts
 const rankedForJudge = [
@@ -133,8 +133,8 @@ const rankedForJudge = [
 
 The summarizer/judge receives the ranked chunks (top‑weighted) and is instructed to answer strictly from the snippets with citations and verbatim quotes. It returns one of: `answered`, `insufficient`, or `ambiguous`.
 
-- `src/test/firecrawl.summarize.ts:1` – schema + prompt construction
-- `src/test/firecrawl.summarize.ts:61` – prompt includes scored chunk previews per source
+- `src/scraper/scraper.summarize.ts:1` – schema + prompt construction
+- `src/scraper/scraper.summarize.ts` – prompt includes scored chunk previews per source
 
 ```ts
 const summary = await summarizeRankedChunks(query, rankedForJudge, anchorISO);
@@ -168,7 +168,7 @@ Key properties enforced by Zod validation in `summarizeRankedChunks`:
 
 ## Quick Reference (Files)
 
-- chunking: `src/test/firecrawl.text.ts:1`
+- chunking: `src/scraper/scraper.text.ts:1`
 - embedding core: `src/llm/embeddings.ts:15`, `src/llm/embeddings.ts:28`, `src/llm/embeddings.ts:44`
-- per‑source ranking: `src/test/firecrawl.pipeline.ts:151`
-- judge integration: `src/test/firecrawl.pipeline.ts:171`, `src/test/firecrawl.summarize.ts:1`
+- per‑source ranking: `src/test/scraper.pipeline.ts`
+- judge integration: `src/test/scraper.pipeline.ts`, `src/scraper/scraper.summarize.ts:1`
