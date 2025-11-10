@@ -7,14 +7,6 @@ export interface PastAttempt {
   reasoning?: string;
 }
 
-export interface PredictionContext {
-  goalText: string;
-  fullTweet: string;
-  predictionContext: string | null;
-  briefRationale: string | null;
-  timeframeEnd: Date | null;
-}
-
 /**
  * Query Enhancer Agent - Uses Querier to generate optimized search queries
  */
@@ -63,14 +55,18 @@ export class QueryEnhancer {
   /**
    * Generate multiple diverse search queries in parallel
    * Each query approaches the claim from a different angle
-   * @param context - Full prediction context including tweet, rationale, and thread summary
+   * @param predictionText - The prediction text (from prediction_context)
    * @param count - Number of queries to generate (default: 3)
-   * @returns Array of enhanced queries
+   * @returns Enhanced queries and token usage stats
    */
   async enhanceMultiple(
-    context: PredictionContext,
+    predictionText: string,
     count: number = 3,
-  ): Promise<string[]> {
+  ): Promise<{
+    queries: string[];
+    totalInputTokens: number;
+    totalOutputTokens: number;
+  }> {
     const queryAngles = [
       "Generate a direct, factual search query focusing on the main claim",
       "Generate a query that would find news articles or reports about this claim",
@@ -82,24 +78,9 @@ export class QueryEnhancer {
       // Create separate chat instance for each query to avoid interference
       const chat = createChat("querier");
 
-      // Build rich context prompt
-      let userPrompt = `Prediction Goal: "${context.goalText}"
+      const userPrompt = `Prediction: "${predictionText}"
 
-Full Tweet: "${context.fullTweet}"`;
-
-      if (context.briefRationale) {
-        userPrompt += `\n\nRationale: ${context.briefRationale}`;
-      }
-
-      if (context.predictionContext) {
-        userPrompt += `\n\nThread Context: ${context.predictionContext.slice(0, 500)}`;
-      }
-
-      if (context.timeframeEnd) {
-        userPrompt += `\n\nTimeframe ends: ${context.timeframeEnd.toISOString().split("T")[0]}`;
-      }
-
-      userPrompt += `\n\n${angle}.
+${angle}.
 
 Return ONLY the search query, nothing else.`;
 
@@ -112,12 +93,27 @@ Return ONLY the search query, nothing else.`;
 
     const responses = await Promise.all(queryPromises);
 
-    // Clean and return queries
-    return responses.map((response) =>
+    // Clean queries and collect token stats
+    const queries = responses.map((response) =>
       response.content
         .trim()
         .replace(/^["']|["']$/g, "")
         .replace(/\n.*/g, ""),
     );
+
+    const totalInputTokens = responses.reduce(
+      (sum, r) => sum + r.inputTokens,
+      0,
+    );
+    const totalOutputTokens = responses.reduce(
+      (sum, r) => sum + r.outputTokens,
+      0,
+    );
+
+    return {
+      queries,
+      totalInputTokens,
+      totalOutputTokens,
+    };
   }
 }

@@ -13,7 +13,7 @@ import {
 import { searchMultiple } from "./search/searchapi.js";
 import { QueryEnhancer } from "./llm/query-enhancer.js";
 import { ResultJudge } from "./llm/result-judge.js";
-import { truncateText } from "./utils.js";
+import { truncateText, writeCostLog } from "./utils.js";
 
 export const ValidationOutcome = z.enum([
   "MaturedTrue",
@@ -210,13 +210,16 @@ export class Validator {
     tx: Transaction,
     prediction: PredictionToValidate,
   ): Promise<ValidationResult> {
-    const goalText = await this.extractGoalText(tx, prediction);
+    // Use prediction_context (thread summary) instead of extracting goal from slices
+    const predictionText =
+      prediction.parsedPredictionDetails.predictionContext ||
+      (await this.extractGoalText(tx, prediction));
 
-    if (!goalText) {
+    if (!predictionText) {
       return {
         prediction_id: prediction.parsedPrediction.id,
         outcome: "Invalid",
-        proof: "Unable to extract goal text from prediction",
+        proof: "Unable to extract prediction text",
         sources: [],
       };
     }
@@ -230,27 +233,18 @@ export class Validator {
     console.log(
       `[Validation] Starting parallel validation for prediction ${prediction.parsedPrediction.id}`,
     );
-    console.log(`[Validation]   Goal: "${goalText}"`);
-
-    // Build rich context for query generation
-    const context = {
-      goalText,
-      fullTweet: prediction.scrapedTweet.text,
-      predictionContext: prediction.parsedPredictionDetails.predictionContext,
-      briefRationale: prediction.parsedPrediction.briefRationale,
-      timeframeEnd: prediction.parsedPredictionDetails.timeframeEndUtc,
-    };
+    console.log(`[Validation]   Prediction: "${predictionText.slice(0, 150)}..."`);
 
     // Step 1: Generate 3 diverse queries in parallel
     console.log(
       `[Validation] Step 1: Generating ${NUM_QUERIES} diverse queries in parallel...`,
     );
-    const enhancedQueries = await queryEnhancer.enhanceMultiple(
-      context,
+    const queryResult = await queryEnhancer.enhanceMultiple(
+      predictionText,
       NUM_QUERIES,
     );
 
-    enhancedQueries.forEach((query, index) => {
+    queryResult.queries.forEach((query, index) => {
       console.log(`[Validation]   Query ${index + 1}: "${query}"`);
     });
 
@@ -258,10 +252,11 @@ export class Validator {
     console.log(
       `[Validation] Step 2: Searching all ${NUM_QUERIES} queries in parallel...`,
     );
-    const searchPromises = enhancedQueries.map((query) =>
+    const searchPromises = queryResult.queries.map((query) =>
       searchMultiple(query, RESULTS_PER_QUERY),
     );
     const allResultSets = await Promise.all(searchPromises);
+    const searchApiCalls = NUM_QUERIES; // Track number of search API calls
 
     // Combine all results
     const combinedResults = allResultSets.flat();
@@ -282,7 +277,10 @@ export class Validator {
     console.log(
       `[Validation] Step 3: Evaluating all ${combinedResults.length} results...`,
     );
-    const judgment = await resultJudge.evaluate(goalText, combinedResults);
+    const judgment = await resultJudge.evaluate(
+      predictionText,
+      combinedResults,
+    );
     console.log(
       `[Validation]   Judgment: ${judgment.decision} (score: ${judgment.score})`,
     );
@@ -314,7 +312,34 @@ export class Validator {
     // Ensure proof fits in 700 characters
     proof = truncateText(proof, 700);
 
-    // Step 6: Return result
+    // Step 6: Track and log costs
+    const totalInputTokens =
+      queryResult.totalInputTokens + judgment.inputTokens;
+    const totalOutputTokens =
+      queryResult.totalOutputTokens + judgment.outputTokens;
+
+    console.log(`[Validation] Costs:`);
+    console.log(`[Validation]   Search API calls: ${searchApiCalls}`);
+    console.log(`[Validation]   Query enhancer tokens: ${queryResult.totalInputTokens} in, ${queryResult.totalOutputTokens} out`);
+    console.log(`[Validation]   Result judge tokens: ${judgment.inputTokens} in, ${judgment.outputTokens} out`);
+    console.log(`[Validation]   Total LLM tokens: ${totalInputTokens} in, ${totalOutputTokens} out`);
+
+    // Write cost data to costs.json
+    await writeCostLog({
+      prediction_id: prediction.parsedPrediction.id,
+      prediction_context: predictionText,
+      searchApiCalls,
+      queryEnhancerInputTokens: queryResult.totalInputTokens,
+      queryEnhancerOutputTokens: queryResult.totalOutputTokens,
+      resultJudgeInputTokens: judgment.inputTokens,
+      resultJudgeOutputTokens: judgment.outputTokens,
+      totalInputTokens,
+      totalOutputTokens,
+      outcome,
+      timestamp: new Date().toISOString(),
+    });
+
+    // Step 7: Return result
     const sources =
       judgment.decision !== "INCONCLUSIVE"
         ? combinedResults.slice(0, 2) // Top 2 sources for conclusive results

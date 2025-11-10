@@ -8,6 +8,8 @@ export interface ChatMessage {
 
 export interface ChatResponse {
   content: string;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 interface ModelConfig {
@@ -77,8 +79,13 @@ export function createChat(modelKey: keyof typeof MODELS) {
       const assistantMessage = choice.message.content;
       messages.push({ role: "assistant", content: assistantMessage });
 
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+
       return {
         content: assistantMessage,
+        inputTokens,
+        outputTokens,
       };
     } catch (error) {
       console.error("OpenRouter API error:", error);

@@ -10,6 +10,8 @@ export interface Judgment {
   summary: string;
   evidence: string;
   reasoning: string;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 /**
@@ -46,6 +48,8 @@ export class ResultJudge {
         summary: "No search results to evaluate",
         evidence: "",
         reasoning: "",
+        inputTokens: 0,
+        outputTokens: 0,
       };
     }
 
@@ -100,6 +104,8 @@ Evaluate these results and determine if they confirm or refute the prediction.`;
       summary,
       evidence,
       reasoning,
+      inputTokens: response.inputTokens,
+      outputTokens: response.outputTokens,
     };
   }
 }
