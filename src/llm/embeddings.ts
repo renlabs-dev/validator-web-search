@@ -1,13 +1,12 @@
-import OpenAI from "openai";
 import { z } from "zod";
-import { env } from "../env.js";
+import { createOpenRouterClient } from "./openrouter.js";
 
 export const EmbeddingInputSchema = z.object({
   texts: z.array(z.string().min(1)).min(1),
   model: z
-    .literal("text-embedding-3-small")
-    .or(z.literal("text-embedding-3-large"))
-    .default("text-embedding-3-small"),
+    .literal("openai/text-embedding-3-small")
+    .or(z.literal("openai/text-embedding-3-large"))
+    .default("openai/text-embedding-3-small"),
 });
 
 export type EmbeddingInput = z.infer<typeof EmbeddingInputSchema>;
@@ -15,7 +14,7 @@ export type EmbeddingInput = z.infer<typeof EmbeddingInputSchema>;
 export async function embedTexts({ texts, model }: EmbeddingInput) {
   const parsed = EmbeddingInputSchema.parse({ texts, model });
 
-  const client = new OpenAI({ apiKey: env.OPENAI_API_KEY });
+  const client = createOpenRouterClient();
 
   const res = await client.embeddings.create({
     model: parsed.model,
@@ -44,7 +43,7 @@ export function cosineSimilarity(a: number[], b: number[]) {
 export async function rankByEmbedding(
   query: string,
   chunks: readonly string[],
-  model: EmbeddingInput["model"] = "text-embedding-3-small",
+  model: EmbeddingInput["model"] = "openai/text-embedding-3-small",
 ) {
   const allEmbs = await embedTexts({ texts: [query, ...chunks], model });
   const qEmb = allEmbs[0];
