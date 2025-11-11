@@ -37,7 +37,7 @@ export interface CostLogEntry {
 }
 
 /**
- * Append cost data to costs.json file
+ * Append cost data to costs.json file and update live cost tracker
  */
 export async function writeCostLog(entry: CostLogEntry): Promise<void> {
   const { appendFile } = await import("node:fs/promises");
@@ -46,7 +46,18 @@ export async function writeCostLog(entry: CostLogEntry): Promise<void> {
 
   try {
     await appendFile("costs.json", logLine, "utf-8");
+
+    // Update cost tracker and render UI
+    const { CostTracker } = await import("./ui/cost-tracker.js");
+    const { TerminalUI } = await import("./ui/terminal-ui.js");
+
+    const tracker = CostTracker.getInstance();
+    tracker.updateCosts(entry);
+
+    const ui = TerminalUI.getInstance();
+    ui.render();
   } catch (error) {
-    console.error("Failed to write to costs.json:", error);
+    const { logError } = await import("./logger.js");
+    logError("Failed to write to costs.json:", error);
   }
 }

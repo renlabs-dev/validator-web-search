@@ -10,7 +10,6 @@ export const env = createEnv({
     POSTGRES_URL: z.string().url(),
     SEARCHAPI_API_KEY: z.string(),
     OPENROUTER_API_KEY: z.string(),
-    OPENAI_API_KEY: z.string(),
     SCRAPER_API: z.string().optional(),
     SCRAPER_BUDGET_CREDITS: z.coerce.number().positive().optional(),
   },

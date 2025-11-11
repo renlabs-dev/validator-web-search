@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, notExists, asc, lte, isNotNull } from "drizzle-orm";
+import { eq, and, or, notExists, asc, lte, gte, ne, isNotNull, isNull } from "drizzle-orm";
 import { type DB, type Transaction } from "./db/client.js";
 import {
   parsedPrediction,
@@ -14,6 +14,7 @@ import { searchMultiple } from "./search/searchapi.js";
 import { QueryEnhancer } from "./llm/query-enhancer.js";
 import { ResultJudge } from "./llm/result-judge.js";
 import { truncateText, writeCostLog } from "./utils.js";
+import { log } from "./logger.js";
 
 export const ValidationOutcome = z.enum([
   "MaturedTrue",
@@ -51,12 +52,146 @@ export interface PredictionToValidate {
   scrapedTweet: ScrapedTweet;
 }
 
+interface PreValidationCheck {
+  shouldValidate: boolean;
+  reason?: string;
+}
+
 export class Validator {
   constructor(_db: DB) {}
 
   /**
+   * Check if a prediction should be validated before doing expensive operations
+   * Filters out invalid predictions based on multiple criteria
+   *
+   * Thresholds are based on database analysis of 70,416 predictions
+   * and 14,218 pending validations. This filtering saves ~11% of API costs.
+   */
+  shouldValidatePrediction(
+    prediction: PredictionToValidate,
+  ): PreValidationCheck {
+    const details = prediction.parsedPredictionDetails;
+    const parsed = prediction.parsedPrediction;
+
+    // Check 1: Timeframe sanity - start should not be after end
+    // Impact: Filters ~1.62% of validation queue (230 out of 14,218)
+    if (details.timeframeStartUtc && details.timeframeEndUtc) {
+      if (details.timeframeStartUtc > details.timeframeEndUtc) {
+        return {
+          shouldValidate: false,
+          reason: "Invalid timeframe: start date is after end date",
+        };
+      }
+    }
+
+    // Check 2: Timeframe status - reject "missing" status
+    // Impact: Filters ~0.15% of validation queue (21 out of 14,218)
+    if (details.timeframeStatus === "missing") {
+      return {
+        shouldValidate: false,
+        reason: 'Timeframe status is "missing" - cannot determine validation timing',
+      };
+    }
+
+    // Check 3: Filter validation reasoning - check if it indicates this is not a valid prediction
+    // Impact: Variable, catches hedging words and non-predictions
+    if (details.filterValidationReasoning) {
+      const reasoning = details.filterValidationReasoning.toLowerCase();
+      const invalidKeywords = [
+        "not a prediction",
+        "not a valid prediction",
+        "no prediction",
+        "invalid prediction",
+        "not making a prediction",
+        "does not contain a prediction",
+        "doesn't contain a prediction",
+        "no clear prediction",
+        "lacks a prediction",
+        "missing prediction",
+        "not predictive",
+        "too vague",
+        "overly vague",
+        "impossible to validate",
+        "cannot be validated",
+        "not verifiable",
+        "unverifiable",
+        "heavy hedging",
+        "quoting someone else",
+        "is an announcement",
+        "factual announcement",
+      ];
+
+      for (const keyword of invalidKeywords) {
+        if (reasoning.includes(keyword)) {
+          return {
+            shouldValidate: false,
+            reason: `Filter stage marked as invalid: ${details.filterValidationReasoning.slice(0, 200)}`,
+          };
+        }
+      }
+    }
+
+    // Check 4: Filter validation confidence - if too low, likely not a real prediction
+    // Data: All values are 0.8-1.0 (avg 0.925, median 0.9)
+    // Impact: Filters ~0.5% of validation queue
+    if (details.filterValidationConfidence !== null) {
+      const confidence = Number(details.filterValidationConfidence);
+      if (confidence < 0.85) {
+        return {
+          shouldValidate: false,
+          reason: `Filter validation confidence too low: ${confidence.toFixed(2)} (threshold: 0.85)`,
+        };
+      }
+    }
+
+    // Check 5: LLM confidence - if too low, prediction quality is suspect
+    // Data: 0.0-1.0 scale (avg 0.755, median 0.7)
+    // Impact: Filters ~1.80% of validation queue (256 out of 14,218)
+    if (parsed.llmConfidence !== null) {
+      const llmConfidence = Number(parsed.llmConfidence);
+      if (llmConfidence < 0.5) {
+        return {
+          shouldValidate: false,
+          reason: `LLM confidence too low: ${llmConfidence.toFixed(2)} (threshold: 0.50)`,
+        };
+      }
+    }
+
+    // Check 6: Prediction quality - if too low, not worth validating
+    // Data: 0-95 scale (avg 53.85, median 55)
+    // Impact: Filters ~0.97% of validation queue (138 out of 14,218)
+    // Quality < 30 are clearly invalid (tautologies, jokes, greetings)
+    if (parsed.predictionQuality !== null) {
+      if (parsed.predictionQuality < 30) {
+        return {
+          shouldValidate: false,
+          reason: `Prediction quality too low: ${parsed.predictionQuality} (threshold: 30)`,
+        };
+      }
+    }
+
+    // Check 7: Vagueness score - if too high, prediction is too vague to validate
+    // Data: 0.0-1.0 scale (avg 0.555, median 0.65)
+    // Impact: Filters ~7.63% of validation queue (1,084 out of 14,218)
+    // Strong correlation: low quality predictions have avg vagueness 0.834-0.863
+    if (parsed.vagueness !== null) {
+      const vagueness = Number(parsed.vagueness);
+      if (vagueness > 0.8) {
+        return {
+          shouldValidate: false,
+          reason: `Prediction too vague: ${vagueness.toFixed(2)} (threshold: 0.80)`,
+        };
+      }
+    }
+
+    // All checks passed
+    return { shouldValidate: true };
+  }
+
+  /**
    * Get next prediction ready for validation
-   * Criteria: timeframe_end_utc is not null, is today or past, and no verdict exists
+   * Criteria: timeframe_end_utc is not null, is today or past, no verdict exists,
+   * and passes pre-validation quality filters at SQL level
    */
   async getNextPredictionToValidate(
     tx: Transaction,
@@ -91,6 +226,38 @@ export class Validator {
               .where(
                 eq(validationResult.parsedPredictionId, parsedPrediction.id),
               ),
+          ),
+          // SQL-level pre-validation filters (eliminates ~11% of invalid predictions)
+          // Filter 1: Timeframe sanity - start must not be after end
+          or(
+            isNull(parsedPredictionDetails.timeframeStartUtc),
+            isNull(parsedPredictionDetails.timeframeEndUtc),
+            lte(
+              parsedPredictionDetails.timeframeStartUtc,
+              parsedPredictionDetails.timeframeEndUtc,
+            ),
+          ),
+          // Filter 2: Timeframe status must not be "missing"
+          ne(parsedPredictionDetails.timeframeStatus, "missing"),
+          // Filter 3: Filter validation confidence >= 0.85
+          or(
+            isNull(parsedPredictionDetails.filterValidationConfidence),
+            gte(parsedPredictionDetails.filterValidationConfidence, "0.85"),
+          ),
+          // Filter 4: Prediction quality >= 30
+          or(
+            isNull(parsedPrediction.predictionQuality),
+            gte(parsedPrediction.predictionQuality, 30),
+          ),
+          // Filter 5: LLM confidence >= 0.5
+          or(
+            isNull(parsedPrediction.llmConfidence),
+            gte(parsedPrediction.llmConfidence, "0.5"),
+          ),
+          // Filter 6: Vagueness <= 0.8
+          or(
+            isNull(parsedPrediction.vagueness),
+            lte(parsedPrediction.vagueness, "0.8"),
           ),
         ),
       )
@@ -210,6 +377,19 @@ export class Validator {
     tx: Transaction,
     prediction: PredictionToValidate,
   ): Promise<ValidationResult> {
+    // Pre-validation check: Filter out invalid predictions before expensive operations
+    const preCheck = this.shouldValidatePrediction(prediction);
+
+    if (!preCheck.shouldValidate) {
+      log(`[Validation] Skipping invalid prediction: ${preCheck.reason}`);
+      return {
+        prediction_id: prediction.parsedPrediction.id,
+        outcome: "Invalid",
+        proof: preCheck.reason || "Prediction failed pre-validation checks",
+        sources: [],
+      };
+    }
+
     // Use prediction_context (thread summary) instead of extracting goal from slices
     const predictionText =
       prediction.parsedPredictionDetails.predictionContext ||
@@ -230,13 +410,13 @@ export class Validator {
     const NUM_QUERIES = 3;
     const RESULTS_PER_QUERY = 10;
 
-    console.log(
+    log(
       `[Validation] Starting parallel validation for prediction ${prediction.parsedPrediction.id}`,
     );
-    console.log(`[Validation]   Prediction: "${predictionText.slice(0, 150)}..."`);
+    log(`[Validation]   Prediction: "${predictionText.slice(0, 150)}..."`);
 
     // Step 1: Generate 3 diverse queries in parallel
-    console.log(
+    log(
       `[Validation] Step 1: Generating ${NUM_QUERIES} diverse queries in parallel...`,
     );
     const queryResult = await queryEnhancer.enhanceMultiple(
@@ -245,11 +425,11 @@ export class Validator {
     );
 
     queryResult.queries.forEach((query, index) => {
-      console.log(`[Validation]   Query ${index + 1}: "${query}"`);
+      log(`[Validation]   Query ${index + 1}: "${query}"`);
     });
 
     // Step 2: Search all queries in parallel
-    console.log(
+    log(
       `[Validation] Step 2: Searching all ${NUM_QUERIES} queries in parallel...`,
     );
     const searchPromises = queryResult.queries.map((query) =>
@@ -260,7 +440,7 @@ export class Validator {
 
     // Combine all results
     const combinedResults = allResultSets.flat();
-    console.log(
+    log(
       `[Validation]   Total results found: ${combinedResults.length}`,
     );
 
@@ -274,17 +454,17 @@ export class Validator {
     }
 
     // Step 3: Single judgment on all combined results
-    console.log(
+    log(
       `[Validation] Step 3: Evaluating all ${combinedResults.length} results...`,
     );
     const judgment = await resultJudge.evaluate(
       predictionText,
       combinedResults,
     );
-    console.log(
+    log(
       `[Validation]   Judgment: ${judgment.decision} (score: ${judgment.score})`,
     );
-    console.log(`[Validation]   Summary: ${judgment.summary}`);
+    log(`[Validation]   Summary: ${judgment.summary}`);
 
     // Step 4: Map score to outcome (including Mostly variants)
     let outcome: ValidationResult["outcome"];
@@ -318,11 +498,11 @@ export class Validator {
     const totalOutputTokens =
       queryResult.totalOutputTokens + judgment.outputTokens;
 
-    console.log(`[Validation] Costs:`);
-    console.log(`[Validation]   Search API calls: ${searchApiCalls}`);
-    console.log(`[Validation]   Query enhancer tokens: ${queryResult.totalInputTokens} in, ${queryResult.totalOutputTokens} out`);
-    console.log(`[Validation]   Result judge tokens: ${judgment.inputTokens} in, ${judgment.outputTokens} out`);
-    console.log(`[Validation]   Total LLM tokens: ${totalInputTokens} in, ${totalOutputTokens} out`);
+    log(`[Validation] Costs:`);
+    log(`[Validation]   Search API calls: ${searchApiCalls}`);
+    log(`[Validation]   Query enhancer tokens: ${queryResult.totalInputTokens} in, ${queryResult.totalOutputTokens} out`);
+    log(`[Validation]   Result judge tokens: ${judgment.inputTokens} in, ${judgment.outputTokens} out`);
+    log(`[Validation]   Total LLM tokens: ${totalInputTokens} in, ${totalOutputTokens} out`);
 
     // Write cost data to costs.json
     await writeCostLog({
