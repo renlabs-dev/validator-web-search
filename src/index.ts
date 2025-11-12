@@ -44,16 +44,14 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
             return null;
           }
 
-          // Extract goal text for logging
-          const goalText = await validator.extractGoalText(tx, prediction);
-          const tweetPreview = prediction.scrapedTweet.text.slice(0, 100);
+          // Log prediction context
+          const context = prediction.parsedPredictionDetails.predictionContext;
+          const contextPreview = context ? context.slice(0, 150) : prediction.scrapedTweet.text.slice(0, 150);
 
           log(`Processing prediction ${prediction.parsedPrediction.id}`);
           log(
-            `  Tweet: "${tweetPreview}${prediction.scrapedTweet.text.length > 100 ? "..." : ""}"`,
+            `  Context: "${contextPreview}${contextPreview.length >= 150 ? "..." : ""}"`,
           );
-          log(`  Goal: "${goalText}"`);
-          log(`  Search query: "${goalText}"`);
 
           // Validate the prediction
           updateWorkerActivity(workerId, "Validating", true);
@@ -65,10 +63,7 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
           // Store the validation result
           await validator.storeValidationResult(tx, validationResult);
 
-          log(
-            `Validation complete: ${validationResult.outcome}`,
-            validationResult,
-          );
+          log(`Validation complete: ${validationResult.outcome}`);
 
           return validationResult;
         });
@@ -80,9 +75,13 @@ async function runWorker(workerId: number, stopHook: () => boolean) {
           await sleep(10000);
         }
       } catch (error) {
-        log("Error processing prediction:", error);
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
+        log(`Error processing prediction: ${errorMessage}`);
+        if (error instanceof Error && error.stack) {
+          log(`Stack trace: ${error.stack}`);
+        }
         updateWorkerActivity(workerId, "Error (retrying)", false);
-        // Wait before retrying on error
         await sleep(5000);
       }
     }
@@ -146,7 +145,7 @@ async function runValidator(concurrency: number = 1) {
 
 // Start the validator with 10 concurrent workers for better throughput
 // Note: Each worker processes predictions independently using FOR UPDATE SKIP LOCKED
-runValidator(10).catch((error) => {
+runValidator(3).catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });

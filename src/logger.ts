@@ -30,3 +30,21 @@ export function logError(message: string, ...args: unknown[]): void {
   if (isShuttingDown) return;
   console.error(message, ...args);
 }
+
+export function logWithContext(
+  predictionId: string,
+  message: string,
+  ...args: unknown[]
+): void {
+  if (isShuttingDown) return;
+  console.log(`[Pred ${predictionId}] ${message}`, ...args);
+}
+
+export function logErrorWithContext(
+  predictionId: string,
+  message: string,
+  ...args: unknown[]
+): void {
+  if (isShuttingDown) return;
+  console.error(`[Pred ${predictionId}] ${message}`, ...args);
+}

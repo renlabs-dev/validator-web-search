@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { eq, and, or, notExists, asc, lte, gte, ne, isNotNull, isNull } from "drizzle-orm";
+import { eq, and, or, asc, lte, gte, ne, isNotNull, isNull } from "drizzle-orm";
 import { type DB, type Transaction } from "./db/client.js";
 import {
   parsedPrediction,
@@ -11,10 +11,10 @@ import {
   type ScrapedTweet,
 } from "./db/schema.js";
 import { searchMultiple } from "./search/searchapi.js";
-import { QueryEnhancer } from "./llm/query-enhancer.js";
+import { QueryEnhancer, type PastAttempt } from "./llm/query-enhancer.js";
 import { ResultJudge } from "./llm/result-judge.js";
 import { truncateText, writeCostLog } from "./utils.js";
-import { log } from "./logger.js";
+import { logWithContext, logErrorWithContext } from "./logger.js";
 
 export const ValidationOutcome = z.enum([
   "MaturedTrue",
@@ -56,6 +56,25 @@ interface PreValidationCheck {
   shouldValidate: boolean;
   reason?: string;
 }
+
+const VALIDATION_CONFIG = {
+  search: {
+    INITIAL_QUERIES: 2,
+    RESULTS_PER_QUERY: 10,
+    MAX_TOTAL_RESULTS: 30,
+    MAX_REFINEMENT_ITERATIONS: 1,
+  },
+  quality: {
+    FILTER_VALIDATION_CONFIDENCE_MIN: 0.85,
+    PREDICTION_QUALITY_MIN: 30,
+    LLM_CONFIDENCE_MIN: 0.5,
+    VAGUENESS_MAX: 0.8,
+  },
+  scoring: {
+    TRUE_DEFINITIVE_MIN: 9,
+    FALSE_DEFINITIVE_MAX: 2,
+  },
+} as const;
 
 export class Validator {
   constructor(_db: DB) {}
@@ -136,10 +155,10 @@ export class Validator {
     // Impact: Filters ~0.5% of validation queue
     if (details.filterValidationConfidence !== null) {
       const confidence = Number(details.filterValidationConfidence);
-      if (confidence < 0.85) {
+      if (confidence < VALIDATION_CONFIG.quality.FILTER_VALIDATION_CONFIDENCE_MIN) {
         return {
           shouldValidate: false,
-          reason: `Filter validation confidence too low: ${confidence.toFixed(2)} (threshold: 0.85)`,
+          reason: `Filter validation confidence too low: ${confidence.toFixed(2)} (threshold: ${VALIDATION_CONFIG.quality.FILTER_VALIDATION_CONFIDENCE_MIN})`,
         };
       }
     }
@@ -149,10 +168,10 @@ export class Validator {
     // Impact: Filters ~1.80% of validation queue (256 out of 14,218)
     if (parsed.llmConfidence !== null) {
       const llmConfidence = Number(parsed.llmConfidence);
-      if (llmConfidence < 0.5) {
+      if (llmConfidence < VALIDATION_CONFIG.quality.LLM_CONFIDENCE_MIN) {
         return {
           shouldValidate: false,
-          reason: `LLM confidence too low: ${llmConfidence.toFixed(2)} (threshold: 0.50)`,
+          reason: `LLM confidence too low: ${llmConfidence.toFixed(2)} (threshold: ${VALIDATION_CONFIG.quality.LLM_CONFIDENCE_MIN})`,
         };
       }
     }
@@ -176,10 +195,10 @@ export class Validator {
     // Strong correlation: low quality predictions have avg vagueness 0.834-0.863
     if (parsed.vagueness !== null) {
       const vagueness = Number(parsed.vagueness);
-      if (vagueness > 0.8) {
+      if (vagueness > VALIDATION_CONFIG.quality.VAGUENESS_MAX) {
         return {
           shouldValidate: false,
-          reason: `Prediction too vague: ${vagueness.toFixed(2)} (threshold: 0.80)`,
+          reason: `Prediction too vague: ${vagueness.toFixed(2)} (threshold: ${VALIDATION_CONFIG.quality.VAGUENESS_MAX})`,
         };
       }
     }
@@ -213,20 +232,17 @@ export class Validator {
         scrapedTweet,
         eq(parsedPrediction.predictionId, scrapedTweet.predictionId),
       )
+      .leftJoin(
+        validationResult,
+        eq(validationResult.parsedPredictionId, parsedPrediction.id),
+      )
       .where(
         and(
           // Timeframe end must exist and be in the past or today
           isNotNull(parsedPredictionDetails.timeframeEndUtc),
           lte(parsedPredictionDetails.timeframeEndUtc, now),
-          // No validation result exists yet
-          notExists(
-            tx
-              .select()
-              .from(validationResult)
-              .where(
-                eq(validationResult.parsedPredictionId, parsedPrediction.id),
-              ),
-          ),
+          // No validation result exists yet (LEFT JOIN with NULL check)
+          isNull(validationResult.parsedPredictionId),
           // SQL-level pre-validation filters (eliminates ~11% of invalid predictions)
           // Filter 1: Timeframe sanity - start must not be after end
           or(
@@ -239,31 +255,46 @@ export class Validator {
           ),
           // Filter 2: Timeframe status must not be "missing"
           ne(parsedPredictionDetails.timeframeStatus, "missing"),
-          // Filter 3: Filter validation confidence >= 0.85
+          // Filter 3: Filter validation confidence threshold
           or(
             isNull(parsedPredictionDetails.filterValidationConfidence),
-            gte(parsedPredictionDetails.filterValidationConfidence, "0.85"),
+            gte(
+              parsedPredictionDetails.filterValidationConfidence,
+              String(VALIDATION_CONFIG.quality.FILTER_VALIDATION_CONFIDENCE_MIN),
+            ),
           ),
-          // Filter 4: Prediction quality >= 30
+          // Filter 4: Prediction quality threshold
           or(
             isNull(parsedPrediction.predictionQuality),
-            gte(parsedPrediction.predictionQuality, 30),
+            gte(
+              parsedPrediction.predictionQuality,
+              VALIDATION_CONFIG.quality.PREDICTION_QUALITY_MIN,
+            ),
           ),
-          // Filter 5: LLM confidence >= 0.5
+          // Filter 5: LLM confidence threshold
           or(
             isNull(parsedPrediction.llmConfidence),
-            gte(parsedPrediction.llmConfidence, "0.5"),
+            gte(
+              parsedPrediction.llmConfidence,
+              String(VALIDATION_CONFIG.quality.LLM_CONFIDENCE_MIN),
+            ),
           ),
-          // Filter 6: Vagueness <= 0.8
+          // Filter 6: Vagueness threshold
           or(
             isNull(parsedPrediction.vagueness),
-            lte(parsedPrediction.vagueness, "0.8"),
+            lte(
+              parsedPrediction.vagueness,
+              String(VALIDATION_CONFIG.quality.VAGUENESS_MAX),
+            ),
           ),
         ),
       )
       .orderBy(asc(parsedPredictionDetails.timeframeEndUtc))
       .limit(1)
-      .for("update", { skipLocked: true });
+      .for("update", {
+        of: [parsedPrediction, parsedPredictionDetails, scrapedTweet],
+        skipLocked: true,
+      });
 
     if (predictions.length === 0) {
       return null;
@@ -355,19 +386,42 @@ export class Validator {
     return goalTexts.join(" ");
   }
 
-  /**
-   * Store validation result in database
-   */
   async storeValidationResult(
     tx: Transaction,
     result: ValidationResult,
   ): Promise<void> {
-    await tx.insert(validationResult).values({
-      parsedPredictionId: result.prediction_id.toString(),
-      outcome: result.outcome,
-      proof: result.proof,
-      sources: result.sources,
-    });
+    try {
+      const proof = result.proof.substring(0, 700);
+      const sources = result.sources.slice(0, 5);
+
+      await tx
+        .insert(validationResult)
+        .values({
+          parsedPredictionId: result.prediction_id.toString(),
+          outcome: result.outcome,
+          proof,
+          sources,
+        })
+        .onConflictDoNothing();
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logErrorWithContext(
+        result.prediction_id.toString(),
+        `Failed to store result: ${errorMessage}`,
+      );
+      logErrorWithContext(
+        result.prediction_id.toString(),
+        `Outcome: ${result.outcome}, Proof length: ${result.proof.length}, Sources count: ${result.sources.length}`,
+      );
+      if (error instanceof Error && error.stack) {
+        logErrorWithContext(
+          result.prediction_id.toString(),
+          `Stack: ${error.stack}`,
+        );
+      }
+      throw error;
+    }
   }
 
   /**
@@ -377,27 +431,27 @@ export class Validator {
     tx: Transaction,
     prediction: PredictionToValidate,
   ): Promise<ValidationResult> {
-    // Pre-validation check: Filter out invalid predictions before expensive operations
+    const predictionId = prediction.parsedPrediction.id;
+
     const preCheck = this.shouldValidatePrediction(prediction);
 
     if (!preCheck.shouldValidate) {
-      log(`[Validation] Skipping invalid prediction: ${preCheck.reason}`);
+      logWithContext(predictionId, `Skipping: ${preCheck.reason}`);
       return {
-        prediction_id: prediction.parsedPrediction.id,
+        prediction_id: predictionId,
         outcome: "Invalid",
         proof: preCheck.reason || "Prediction failed pre-validation checks",
         sources: [],
       };
     }
 
-    // Use prediction_context (thread summary) instead of extracting goal from slices
     const predictionText =
       prediction.parsedPredictionDetails.predictionContext ||
       (await this.extractGoalText(tx, prediction));
 
     if (!predictionText) {
       return {
-        prediction_id: prediction.parsedPrediction.id,
+        prediction_id: predictionId,
         outcome: "Invalid",
         proof: "Unable to extract prediction text",
         sources: [],
@@ -407,129 +461,213 @@ export class Validator {
     const queryEnhancer = new QueryEnhancer();
     const resultJudge = new ResultJudge();
 
-    const NUM_QUERIES = 3;
-    const RESULTS_PER_QUERY = 10;
-
-    log(
-      `[Validation] Starting parallel validation for prediction ${prediction.parsedPrediction.id}`,
-    );
-    log(`[Validation]   Prediction: "${predictionText.slice(0, 150)}..."`);
-
-    // Step 1: Generate 3 diverse queries in parallel
-    log(
-      `[Validation] Step 1: Generating ${NUM_QUERIES} diverse queries in parallel...`,
-    );
-    const queryResult = await queryEnhancer.enhanceMultiple(
-      predictionText,
-      NUM_QUERIES,
+    logWithContext(predictionId, "Starting hybrid validation");
+    logWithContext(
+      predictionId,
+      `Prediction: "${predictionText.slice(0, 150)}..."`,
     );
 
-    queryResult.queries.forEach((query, index) => {
-      log(`[Validation]   Query ${index + 1}: "${query}"`);
-    });
+    try {
+      logWithContext(
+        predictionId,
+        `Step 1: Generating ${VALIDATION_CONFIG.search.INITIAL_QUERIES} queries...`,
+      );
+      const initialQueryResult = await queryEnhancer.enhanceMultiple(
+        predictionText,
+        VALIDATION_CONFIG.search.INITIAL_QUERIES,
+      );
 
-    // Step 2: Search all queries in parallel
-    log(
-      `[Validation] Step 2: Searching all ${NUM_QUERIES} queries in parallel...`,
-    );
-    const searchPromises = queryResult.queries.map((query) =>
-      searchMultiple(query, RESULTS_PER_QUERY),
-    );
-    const allResultSets = await Promise.all(searchPromises);
-    const searchApiCalls = NUM_QUERIES; // Track number of search API calls
+      initialQueryResult.queries.forEach((query, index) => {
+        logWithContext(predictionId, `Query ${index + 1}: "${query}"`);
+      });
 
-    // Combine all results
-    const combinedResults = allResultSets.flat();
-    log(
-      `[Validation]   Total results found: ${combinedResults.length}`,
-    );
+      logWithContext(
+        predictionId,
+        `Step 2: Searching ${VALIDATION_CONFIG.search.INITIAL_QUERIES} queries...`,
+      );
+      const searchPromises = initialQueryResult.queries.map((query) =>
+        searchMultiple(query, VALIDATION_CONFIG.search.RESULTS_PER_QUERY),
+      );
+      const initialResultSets = await Promise.all(searchPromises);
 
-    if (combinedResults.length === 0) {
+      let totalQueryEnhancerInputTokens = initialQueryResult.totalInputTokens;
+      let totalQueryEnhancerOutputTokens = initialQueryResult.totalOutputTokens;
+      let totalResultJudgeInputTokens = 0;
+      let totalResultJudgeOutputTokens = 0;
+      let searchApiCalls = VALIDATION_CONFIG.search.INITIAL_QUERIES;
+
+      let combinedResults = initialResultSets.flat();
+      logWithContext(
+        predictionId,
+        `Total results found: ${combinedResults.length}`,
+      );
+
+      if (combinedResults.length === 0) {
+        return {
+          prediction_id: predictionId,
+          outcome: "MissingContext",
+          proof: "No search results found",
+          sources: [],
+        };
+      }
+
+      logWithContext(
+        predictionId,
+        `Step 3: Evaluating ${combinedResults.length} results...`,
+      );
+      let judgment = await resultJudge.evaluate(
+        predictionText,
+        combinedResults,
+      );
+      totalResultJudgeInputTokens += judgment.inputTokens;
+      totalResultJudgeOutputTokens += judgment.outputTokens;
+
+      logWithContext(
+        predictionId,
+        `Judgment: ${judgment.decision} (score: ${judgment.score}), Sufficient: ${judgment.sufficient ? "yes" : "no"}`,
+      );
+
+      if (
+        !judgment.sufficient &&
+        combinedResults.length < VALIDATION_CONFIG.search.MAX_TOTAL_RESULTS
+      ) {
+        logWithContext(
+          predictionId,
+          "Step 4: Results insufficient, generating refined query...",
+        );
+        if (judgment.nextQuerySuggestion) {
+          logWithContext(
+            predictionId,
+            `Suggestion: ${judgment.nextQuerySuggestion}`,
+          );
+        }
+
+        const pastAttempts: PastAttempt[] = initialQueryResult.queries.map(
+          (q) => {
+            const attempt: PastAttempt = {
+              query: q,
+              success: false,
+            };
+            if (judgment.nextQuerySuggestion) {
+              attempt.reasoning = judgment.nextQuerySuggestion;
+            }
+            return attempt;
+          },
+        );
+
+        const refinedQueryResult = await queryEnhancer.enhanceWithTokens(
+          predictionText,
+          pastAttempts,
+        );
+        totalQueryEnhancerInputTokens += refinedQueryResult.inputTokens;
+        totalQueryEnhancerOutputTokens += refinedQueryResult.outputTokens;
+
+        logWithContext(
+          predictionId,
+          `Refined query: "${refinedQueryResult.query}"`,
+        );
+
+        const refinedResults = await searchMultiple(
+          refinedQueryResult.query,
+          VALIDATION_CONFIG.search.RESULTS_PER_QUERY,
+        );
+        searchApiCalls++;
+
+        combinedResults = [...combinedResults, ...refinedResults];
+        logWithContext(
+          predictionId,
+          `Additional results: ${refinedResults.length}, Total: ${combinedResults.length}`,
+        );
+
+        judgment = await resultJudge.evaluate(predictionText, combinedResults);
+        totalResultJudgeInputTokens += judgment.inputTokens;
+        totalResultJudgeOutputTokens += judgment.outputTokens;
+
+        logWithContext(
+          predictionId,
+          `Final judgment: ${judgment.decision} (score: ${judgment.score})`,
+        );
+      }
+
+      let outcome: ValidationResult["outcome"];
+
+      if (judgment.decision === "TRUE") {
+        outcome =
+          judgment.score >= VALIDATION_CONFIG.scoring.TRUE_DEFINITIVE_MIN
+            ? "MaturedTrue"
+            : "MaturedMostlyTrue";
+      } else if (judgment.decision === "FALSE") {
+        outcome =
+          judgment.score <= VALIDATION_CONFIG.scoring.FALSE_DEFINITIVE_MAX
+            ? "MaturedFalse"
+            : "MaturedMostlyFalse";
+      } else {
+        outcome = "MissingContext";
+      }
+
+      let proof = judgment.summary;
+
+      if (judgment.evidence) {
+        proof += `\n\n${judgment.evidence}`;
+      }
+
+      if (judgment.reasoning) {
+        proof += `\n\nReasoning: ${judgment.reasoning}`;
+      }
+
+      proof = truncateText(proof, 700);
+
+      const totalInputTokens =
+        totalQueryEnhancerInputTokens + totalResultJudgeInputTokens;
+      const totalOutputTokens =
+        totalQueryEnhancerOutputTokens + totalResultJudgeOutputTokens;
+
+      logWithContext(
+        predictionId,
+        `Costs: ${searchApiCalls} searches, ${totalInputTokens}/${totalOutputTokens} tokens`,
+      );
+
+      await writeCostLog({
+        prediction_id: predictionId,
+        prediction_context: predictionText,
+        searchApiCalls,
+        queryEnhancerInputTokens: totalQueryEnhancerInputTokens,
+        queryEnhancerOutputTokens: totalQueryEnhancerOutputTokens,
+        resultJudgeInputTokens: totalResultJudgeInputTokens,
+        resultJudgeOutputTokens: totalResultJudgeOutputTokens,
+        totalInputTokens,
+        totalOutputTokens,
+        outcome,
+        timestamp: new Date().toISOString(),
+      });
+
+      const sources =
+        judgment.decision !== "INCONCLUSIVE"
+          ? combinedResults.slice(0, 2)
+          : [];
+
       return {
-        prediction_id: prediction.parsedPrediction.id,
-        outcome: "MissingContext",
-        proof: "No search results found across all query variations",
+        prediction_id: predictionId,
+        outcome,
+        proof,
+        sources,
+      };
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      logErrorWithContext(
+        predictionId,
+        `Validation failed: ${errorMessage}`,
+      );
+      if (error instanceof Error && error.stack) {
+        logErrorWithContext(predictionId, `Stack: ${error.stack}`);
+      }
+      return {
+        prediction_id: predictionId,
+        outcome: "Invalid",
+        proof: `Validation error: ${errorMessage}`,
         sources: [],
       };
     }
-
-    // Step 3: Single judgment on all combined results
-    log(
-      `[Validation] Step 3: Evaluating all ${combinedResults.length} results...`,
-    );
-    const judgment = await resultJudge.evaluate(
-      predictionText,
-      combinedResults,
-    );
-    log(
-      `[Validation]   Judgment: ${judgment.decision} (score: ${judgment.score})`,
-    );
-    log(`[Validation]   Summary: ${judgment.summary}`);
-
-    // Step 4: Map score to outcome (including Mostly variants)
-    let outcome: ValidationResult["outcome"];
-
-    if (judgment.decision === "TRUE") {
-      outcome = judgment.score >= 9 ? "MaturedTrue" : "MaturedMostlyTrue";
-    } else if (judgment.decision === "FALSE") {
-      outcome = judgment.score <= 2 ? "MaturedFalse" : "MaturedMostlyFalse";
-    } else {
-      // INCONCLUSIVE
-      outcome = "MissingContext";
-    }
-
-    // Step 5: Format proof as structured markdown
-    let proof = judgment.summary;
-
-    if (judgment.evidence) {
-      proof += `\n\n${judgment.evidence}`;
-    }
-
-    if (judgment.reasoning) {
-      proof += `\n\nReasoning: ${judgment.reasoning}`;
-    }
-
-    // Ensure proof fits in 700 characters
-    proof = truncateText(proof, 700);
-
-    // Step 6: Track and log costs
-    const totalInputTokens =
-      queryResult.totalInputTokens + judgment.inputTokens;
-    const totalOutputTokens =
-      queryResult.totalOutputTokens + judgment.outputTokens;
-
-    log(`[Validation] Costs:`);
-    log(`[Validation]   Search API calls: ${searchApiCalls}`);
-    log(`[Validation]   Query enhancer tokens: ${queryResult.totalInputTokens} in, ${queryResult.totalOutputTokens} out`);
-    log(`[Validation]   Result judge tokens: ${judgment.inputTokens} in, ${judgment.outputTokens} out`);
-    log(`[Validation]   Total LLM tokens: ${totalInputTokens} in, ${totalOutputTokens} out`);
-
-    // Write cost data to costs.json
-    await writeCostLog({
-      prediction_id: prediction.parsedPrediction.id,
-      prediction_context: predictionText,
-      searchApiCalls,
-      queryEnhancerInputTokens: queryResult.totalInputTokens,
-      queryEnhancerOutputTokens: queryResult.totalOutputTokens,
-      resultJudgeInputTokens: judgment.inputTokens,
-      resultJudgeOutputTokens: judgment.outputTokens,
-      totalInputTokens,
-      totalOutputTokens,
-      outcome,
-      timestamp: new Date().toISOString(),
-    });
-
-    // Step 7: Return result
-    const sources =
-      judgment.decision !== "INCONCLUSIVE"
-        ? combinedResults.slice(0, 2) // Top 2 sources for conclusive results
-        : []; // No sources for inconclusive results
-
-    return {
-      prediction_id: prediction.parsedPrediction.id,
-      outcome,
-      proof,
-      sources,
-    };
   }
 }

@@ -39,7 +39,7 @@ export class QueryEnhancer {
 
     const response = await this.chat(userPrompt, {
       system: QUERY_ENHANCER_SYSTEM_PROMPT,
-      temperature: 0.7,
+      temperature: 0.7 + pastAttempts.length * 0.1, // Increase temp for more diversity on refinements
       maxTokens: 200,
     });
 
@@ -50,6 +50,54 @@ export class QueryEnhancer {
       .replace(/\n.*/g, ""); // Take only first line if multi-line
 
     return query;
+  }
+
+  /**
+   * Generate a single enhanced search query with token tracking
+   * Useful for hybrid search approach where we generate one query at a time
+   * @param goalText - The prediction goal text
+   * @param pastAttempts - Previous search attempts (for learning)
+   * @returns Enhanced query and token usage stats
+   */
+  async enhanceWithTokens(
+    goalText: string,
+    pastAttempts: PastAttempt[] = [],
+  ): Promise<{
+    query: string;
+    inputTokens: number;
+    outputTokens: number;
+  }> {
+    let userPrompt = `Prediction claim: "${goalText}"\n\nGenerate an optimized search query to verify this claim.`;
+
+    // Add context from past attempts if any
+    if (pastAttempts.length > 0) {
+      userPrompt += `\n\nPrevious attempts that didn't yield clear results:`;
+      pastAttempts.forEach((attempt, index) => {
+        userPrompt += `\n${index + 1}. Query: "${attempt.query}"`;
+        if (attempt.reasoning) {
+          userPrompt += ` - ${attempt.reasoning}`;
+        }
+      });
+      userPrompt += `\n\nGenerate a DIFFERENT query that approaches the claim from a new angle.`;
+    }
+
+    const response = await this.chat(userPrompt, {
+      system: QUERY_ENHANCER_SYSTEM_PROMPT,
+      temperature: 0.7 + pastAttempts.length * 0.1,
+      maxTokens: 200,
+    });
+
+    // Clean up the response
+    const query = response.content
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\n.*/g, "");
+
+    return {
+      query,
+      inputTokens: response.inputTokens,
+      outputTokens: response.outputTokens,
+    };
   }
 
   /**
