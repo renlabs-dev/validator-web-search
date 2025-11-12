@@ -7,14 +7,6 @@ export interface PastAttempt {
   reasoning?: string;
 }
 
-export interface PredictionContext {
-  goalText: string;
-  fullTweet: string;
-  predictionContext: string | null;
-  briefRationale: string | null;
-  timeframeEnd: Date | null;
-}
-
 /**
  * Query Enhancer Agent - Uses Querier to generate optimized search queries
  */
@@ -47,7 +39,7 @@ export class QueryEnhancer {
 
     const response = await this.chat(userPrompt, {
       system: QUERY_ENHANCER_SYSTEM_PROMPT,
-      temperature: 0.7,
+      temperature: 0.7 + pastAttempts.length * 0.1, // Increase temp for more diversity on refinements
       maxTokens: 200,
     });
 
@@ -61,16 +53,68 @@ export class QueryEnhancer {
   }
 
   /**
+   * Generate a single enhanced search query with token tracking
+   * Useful for hybrid search approach where we generate one query at a time
+   * @param goalText - The prediction goal text
+   * @param pastAttempts - Previous search attempts (for learning)
+   * @returns Enhanced query and token usage stats
+   */
+  async enhanceWithTokens(
+    goalText: string,
+    pastAttempts: PastAttempt[] = [],
+  ): Promise<{
+    query: string;
+    inputTokens: number;
+    outputTokens: number;
+  }> {
+    let userPrompt = `Prediction claim: "${goalText}"\n\nGenerate an optimized search query to verify this claim.`;
+
+    // Add context from past attempts if any
+    if (pastAttempts.length > 0) {
+      userPrompt += `\n\nPrevious attempts that didn't yield clear results:`;
+      pastAttempts.forEach((attempt, index) => {
+        userPrompt += `\n${index + 1}. Query: "${attempt.query}"`;
+        if (attempt.reasoning) {
+          userPrompt += ` - ${attempt.reasoning}`;
+        }
+      });
+      userPrompt += `\n\nGenerate a DIFFERENT query that approaches the claim from a new angle.`;
+    }
+
+    const response = await this.chat(userPrompt, {
+      system: QUERY_ENHANCER_SYSTEM_PROMPT,
+      temperature: 0.7 + pastAttempts.length * 0.1,
+      maxTokens: 200,
+    });
+
+    // Clean up the response
+    const query = response.content
+      .trim()
+      .replace(/^["']|["']$/g, "")
+      .replace(/\n.*/g, "");
+
+    return {
+      query,
+      inputTokens: response.inputTokens,
+      outputTokens: response.outputTokens,
+    };
+  }
+
+  /**
    * Generate multiple diverse search queries in parallel
    * Each query approaches the claim from a different angle
-   * @param context - Full prediction context including tweet, rationale, and thread summary
+   * @param predictionText - The prediction text (from prediction_context)
    * @param count - Number of queries to generate (default: 3)
-   * @returns Array of enhanced queries
+   * @returns Enhanced queries and token usage stats
    */
   async enhanceMultiple(
-    context: PredictionContext,
+    predictionText: string,
     count: number = 3,
-  ): Promise<string[]> {
+  ): Promise<{
+    queries: string[];
+    totalInputTokens: number;
+    totalOutputTokens: number;
+  }> {
     const queryAngles = [
       "Generate a direct, factual search query focusing on the main claim",
       "Generate a query that would find news articles or reports about this claim",
@@ -82,24 +126,9 @@ export class QueryEnhancer {
       // Create separate chat instance for each query to avoid interference
       const chat = createChat("querier");
 
-      // Build rich context prompt
-      let userPrompt = `Prediction Goal: "${context.goalText}"
+      const userPrompt = `Prediction: "${predictionText}"
 
-Full Tweet: "${context.fullTweet}"`;
-
-      if (context.briefRationale) {
-        userPrompt += `\n\nRationale: ${context.briefRationale}`;
-      }
-
-      if (context.predictionContext) {
-        userPrompt += `\n\nThread Context: ${context.predictionContext.slice(0, 500)}`;
-      }
-
-      if (context.timeframeEnd) {
-        userPrompt += `\n\nTimeframe ends: ${context.timeframeEnd.toISOString().split("T")[0]}`;
-      }
-
-      userPrompt += `\n\n${angle}.
+${angle}.
 
 Return ONLY the search query, nothing else.`;
 
@@ -112,12 +141,27 @@ Return ONLY the search query, nothing else.`;
 
     const responses = await Promise.all(queryPromises);
 
-    // Clean and return queries
-    return responses.map((response) =>
+    // Clean queries and collect token stats
+    const queries = responses.map((response) =>
       response.content
         .trim()
         .replace(/^["']|["']$/g, "")
         .replace(/\n.*/g, ""),
     );
+
+    const totalInputTokens = responses.reduce(
+      (sum, r) => sum + r.inputTokens,
+      0,
+    );
+    const totalOutputTokens = responses.reduce(
+      (sum, r) => sum + r.outputTokens,
+      0,
+    );
+
+    return {
+      queries,
+      totalInputTokens,
+      totalOutputTokens,
+    };
   }
 }

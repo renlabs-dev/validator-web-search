@@ -85,9 +85,58 @@ interface ValidationResult {
 
 ## Validator Core Operations
 
+### Stage 0: Pre-Validation Filtering
+
+**Goal**: Filter out invalid predictions BEFORE expensive API calls
+
+The validator implements a two-layer filtering system to reduce wasted costs on predictions that cannot be meaningfully validated:
+
+#### Layer 1: SQL-Level Filters
+
+Applied at the database query level in `getNextPredictionToValidate()` to prevent fetching invalid predictions:
+
+```typescript
+// 7 SQL-level filters applied in WHERE clause:
+
+// Filter 1: Timeframe Sanity (~1.62% filtered)
+or(isNull(timeframeStartUtc), isNull(timeframeEndUtc),
+   lte(timeframeStartUtc, timeframeEndUtc))
+
+// Filter 2: Timeframe Status (~0.15% filtered)
+ne(timeframeStatus, "missing")
+
+// Filter 3: Filter Validation Confidence (~0.5% filtered)
+or(isNull(filterValidationConfidence), gte(filterValidationConfidence, "0.85"))
+
+// Filter 4: Prediction Quality (~0.97% filtered)
+or(isNull(predictionQuality), gte(predictionQuality, 30))
+
+// Filter 5: LLM Confidence (~1.80% filtered)
+or(isNull(llmConfidence), gte(llmConfidence, "0.5"))
+
+// Filter 6: Vagueness (~7.63% filtered)
+or(isNull(vagueness), lte(vagueness, "0.8"))
+```
+
+**Total Impact**: Filters ~10.87% (1,546 out of 14,218) predictions before any API calls, saving 7,730 API calls.
+
+**Data Source**: Thresholds derived from statistical analysis of 70,416 predictions. See `FILTERING_ANALYSIS.md` for full analysis.
+
+#### Layer 2: Application-Level Checks
+
+Applied in `shouldValidatePrediction()` after fetching prediction:
+
+- Keyword scanning in `filter_validation_reasoning` for semantic invalidity
+- Redundant safety checks for edge cases missed by SQL filters
+- Early return with "Invalid" outcome (0 API calls) if checks fail
+
+**Outcome**: Predictions that fail pre-validation are immediately marked as "Invalid" without consuming any LLM or SearchAPI resources.
+
+---
+
 ### Stage 1: Query Selection
 
-**Goal**: Find predictions ready for validation
+**Goal**: Find predictions ready for validation (with pre-filtering applied)
 
 ```typescript
 async getNextPredictionToValidate(tx: Transaction) {
@@ -113,32 +162,55 @@ async getNextPredictionToValidate(tx: Transaction) {
 
 - `timeframe_end_utc` is not null and ≤ today (prediction has matured)
 - No `validation_result` exists yet
-- Uses `FOR UPDATE SKIP LOCKED` for concurrent worker safety
+- Pre-validation filters applied (see Stage 0)
+- Ordered by `timeframe_end_utc` ASC (oldest first)
+- Uses `FOR UPDATE SKIP LOCKED` for concurrent worker safety (10 workers in parallel)
 
 ### Stage 2: Goal Extraction
 
-**Goal**: Extract the prediction claim from the tweet text
+**Goal**: Extract the prediction claim from the tweet (or thread)
+
+**Primary Strategy**: Use `prediction_context` (thread summary from Verifier)
 
 ```typescript
-extractGoalText(prediction: PredictionToValidate): string {
+const predictionText = prediction.parsedPredictionDetails.predictionContext;
+```
+
+**Fallback Strategy**: Extract from goal slices with cross-tweet support
+
+```typescript
+async extractGoalText(tx: Transaction, prediction: PredictionToValidate): Promise<string> {
   const goalSlices = prediction.parsedPrediction.goal as Array<{
     start: number;
     end: number;
+    source?: { tweet_id: string };
   }>;
 
-  const tweetText = prediction.scrapedTweet.text;
-  const goalTexts = goalSlices.map((slice) =>
-    tweetText.slice(slice.start, slice.end)
-  );
+  // Handle cross-tweet references
+  for (const slice of goalSlices) {
+    if (slice.source?.tweet_id !== prediction.scrapedTweet.id) {
+      // Fetch text from referenced tweet in database
+      const referencedTweet = await tx
+        .select({ text: scrapedTweet.text })
+        .from(scrapedTweet)
+        .where(eq(scrapedTweet.id, slice.source.tweet_id))
+        .limit(1);
+
+      goalTexts.push(referencedTweet[0].text.slice(slice.start, slice.end));
+    } else {
+      goalTexts.push(tweetText.slice(slice.start, slice.end));
+    }
+  }
 
   return goalTexts.join(" ");
 }
 ```
 
-**Example**:
+**Example (Thread Prediction)**:
 
-- Tweet: "I predict Bitcoin will hit $100k by end of Q1 2025! 🚀"
-- Goal slices: `[{start: 10, end: 54}]`
+- Tweet 1: "I predict Bitcoin will hit $100k"
+- Tweet 2: "by end of Q1 2025! 🚀"
+- Goal slices: `[{start: 10, end: 45, source: {tweet_id: "1"}}, {start: 0, end: 21, source: {tweet_id: "2"}}]`
 - Extracted: "Bitcoin will hit $100k by end of Q1 2025"
 
 ### Stage 3: Query Enhancement (LLM Agent #1)
@@ -224,26 +296,112 @@ Summary line of validation result.
 Reasoning: Optional one-line explanation.
 ```
 
-### Stage 5: Storage
+### Stage 6: Storage and Cost Tracking
 
-**Goal**: Persist validation results to database
+**Goal**: Persist validation results and track costs
+
+#### Database Storage
 
 ```typescript
 async storeValidationResult(tx: Transaction, result: ValidationResult) {
   await tx.insert(validationResult).values({
     parsedPredictionId: result.prediction_id.toString(),
     outcome: result.outcome,
-    proof: result.proof,
-    sources: result.sources,
+    proof: result.proof, // Truncated to 700 chars
+    sources: result.sources, // Top 2 search results (JSONB)
   });
 }
 ```
 
 **Table**: `validation_result`
 
-- Stores validation outcome and evidence
-- Indexed on `parsed_prediction_id` for fast lookups
-- Prevents duplicate validation via `notExists()` check in query
+**Constraints**:
+- Unique constraint on `parsed_prediction_id` prevents duplicate validations
+- JSONB `sources` stores array of search results with url, title, excerpt, pub_date
+
+#### Cost Logging
+
+```typescript
+await writeCostLog({
+  prediction_id: prediction.parsedPrediction.id,
+  prediction_context: predictionText,
+  searchApiCalls: 3, // Always 3 parallel searches
+  queryEnhancerInputTokens: queryResult.totalInputTokens,
+  queryEnhancerOutputTokens: queryResult.totalOutputTokens,
+  resultJudgeInputTokens: judgment.inputTokens,
+  resultJudgeOutputTokens: judgment.outputTokens,
+  totalInputTokens: queryResult.totalInputTokens + judgment.inputTokens,
+  totalOutputTokens: queryResult.totalOutputTokens + judgment.outputTokens,
+  outcome: result.outcome,
+  timestamp: new Date().toISOString()
+});
+```
+
+**Cost Tracking**:
+- Appended to `costs.json` (one JSON object per line)
+- Tracks both LLM token usage and SearchAPI call counts
+- Used for historical cost analysis and budgeting
+
+---
+
+### Complete Validation Flow
+
+```
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 0: Pre-Validation Filtering                            │
+│   SQL Filters → ~10.87% filtered (1,546 predictions)         │
+│   App Filters → Early "Invalid" return (0 API calls)         │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 1: Query Selection                                     │
+│   Database: parsedPrediction + details + scrapedTweet        │
+│   Concurrency: FOR UPDATE SKIP LOCKED (10 workers)           │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 2: Goal Extraction                                     │
+│   Primary: prediction_context (thread summary)               │
+│   Fallback: Extract from goal slices (cross-tweet support)   │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 3: Query Enhancement (LLM #1)                          │
+│   Model: Gemini 2.5 Flash via OpenRouter                     │
+│   Generate 3 queries in PARALLEL (temp 0.7, 0.8, 0.9)        │
+│   Track: input/output tokens                                 │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 4: Parallel Web Search                                 │
+│   3 PARALLEL searches via SearchAPI.io (Google)              │
+│   10 results per query = ~30 total results                   │
+│   Execution: ~2-3 seconds                                    │
+│   Early exit: "MissingContext" if no results                 │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 5: Result Judgment (LLM #2)                            │
+│   Model: Gemini 2.5 Flash via OpenRouter                     │
+│   Input: Prediction + ALL 30 search results                  │
+│   Output: Score (0-10) + Decision + Evidence                 │
+│   Outcome Mapping: TRUE/FALSE/INCONCLUSIVE → 7 outcomes      │
+│   Track: input/output tokens                                 │
+└─────────────────────────┬─────────────────────────────────────┘
+                          │
+                          v
+┌───────────────────────────────────────────────────────────────┐
+│ Stage 6: Storage and Cost Tracking                           │
+│   Database: INSERT validation_result (unique constraint)     │
+│   Cost Log: Append to costs.json (tokens + API calls)        │
+│   Transaction: COMMIT all operations atomically              │
+└───────────────────────────────────────────────────────────────┘
+```
 
 ---
 

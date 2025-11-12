@@ -1,52 +1,60 @@
 # Validator
 
-Validator validates verdicts from the Verifier by performing independent web searches and evidence gathering.
+Multi-worker validation system that evaluates predictions using web search and LLM-based evidence analysis.
 
 ## Quick Start
 
 ```bash
-# Install dependencies
 npm install
-
-# Setup environment
 cp .env.example .env
-# Edit .env with your credentials
-
-# Run validator
+# Configure .env with your credentials
 npm run dev
 ```
 
-## Documentation
+## Architecture
 
-See [VALIDATOR.md](./VALIDATOR.md) for complete architecture and implementation details.
+- **10 concurrent workers** with row-level locking for parallel processing
+- **Hybrid search strategy**: 2 parallel queries + optional refinement
+- **Two-agent system**: Query generation (Gemini 2.5 Flash) + Result evaluation (Gemini 2.5 Flash)
+- **Pre-validation filtering**: SQL-level quality checks reduce API costs by ~11%
+- **Live terminal UI**: Real-time stats, cost tracking, worker status
 
 ## Project Structure
 
 ```
 validator/
 ├── src/
-│   ├── db/              # Database client and schema
-│   ├── llm/             # LLM agents (query enhancer, result judge)
+│   ├── db/              # Drizzle ORM client and schema
+│   ├── llm/             # LLM agents (QueryEnhancer, ResultJudge)
 │   ├── search/          # SearchAPI.io integration
-│   ├── env.ts           # Environment config
+│   ├── ui/              # Terminal UI and cost tracking
 │   ├── validator.ts     # Core validation logic
-│   ├── utils.ts         # Utility functions
-│   └── index.ts         # Main entry point
-├── drizzle/             # Database migrations
-├── QUERY_ENHANCER_PROMPT.md  # Query enhancement prompt
-├── RESULT_JUDGE_PROMPT.md    # Result judgment prompt
-├── .env.example         # Environment template
-└── VALIDATOR.md         # Architecture docs
+│   ├── logger.ts        # Logging with shutdown awareness
+│   ├── utils.ts         # Utilities
+│   └── index.ts         # Worker orchestration
+├── prompts/             # Agent system prompts (JSON)
+└── drizzle/             # Database migrations
 ```
 
 ## Environment Variables
 
-- `POSTGRES_URL` - PostgreSQL connection string
-- `SEARCHAPI_API_KEY` - SearchAPI.io API key
-- `OPENROUTER_API_KEY` - OpenRouter API key for LLM agents
-- `NODE_TLS_REJECT_UNAUTHORIZED` - Set to `0` for self-signed certs
-- `PORT` - Server port (default: 3000)
-- `NODE_ENV` - Environment (development/production)
+```env
+POSTGRES_URL=postgresql://...
+SEARCHAPI_API_KEY=...
+OPENROUTER_API_KEY=...
+NODE_ENV=production
+```
+
+## Validation Pipeline
+
+1. **Fetch**: Get next unvalidated prediction (timeframe ended)
+2. **Pre-validate**: Check quality thresholds (confidence, vagueness, etc.)
+3. **Extract**: Use prediction_context or extract from goal slices
+4. **Query**: Generate 2 diverse search queries
+5. **Search**: Parallel search (10 results per query)
+6. **Judge**: Evaluate evidence with sufficiency check
+7. **Refine**: Optional 3rd query if insufficient results
+8. **Store**: Write outcome (MaturedTrue/False/MostlyTrue/MostlyFalse/MissingContext/Invalid)
 
 ## Scripts
 
@@ -54,7 +62,14 @@ validator/
 npm run dev          # Run with hot reload
 npm run build        # Compile TypeScript
 npm start            # Run compiled version
-npm run typecheck    # Type checking
-npm run lint         # Lint code
-npm run test         # Run tests
+npm run typecheck    # Type checking only
 ```
+
+## Configuration
+
+Edit `VALIDATION_CONFIG` in `src/validator.ts`:
+
+- `search.INITIAL_QUERIES`: Parallel queries (default: 2)
+- `search.MAX_TOTAL_RESULTS`: Max results before stopping (default: 30)
+- `quality.*`: Pre-validation thresholds
+- `scoring.*`: Outcome mapping thresholds

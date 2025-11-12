@@ -21,3 +21,43 @@ export function sanitizeUrl(url: string): string {
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export interface CostLogEntry {
+  prediction_id: string;
+  prediction_context: string;
+  searchApiCalls: number;
+  queryEnhancerInputTokens: number;
+  queryEnhancerOutputTokens: number;
+  resultJudgeInputTokens: number;
+  resultJudgeOutputTokens: number;
+  totalInputTokens: number;
+  totalOutputTokens: number;
+  outcome: string;
+  timestamp: string;
+}
+
+/**
+ * Append cost data to costs.json file and update live cost tracker
+ */
+export async function writeCostLog(entry: CostLogEntry): Promise<void> {
+  const { appendFile } = await import("node:fs/promises");
+
+  const logLine = JSON.stringify(entry) + "\n";
+
+  try {
+    await appendFile("costs.json", logLine, "utf-8");
+
+    // Update cost tracker and render UI
+    const { CostTracker } = await import("./ui/cost-tracker.js");
+    const { TerminalUI } = await import("./ui/terminal-ui.js");
+
+    const tracker = CostTracker.getInstance();
+    tracker.updateCosts(entry);
+
+    const ui = TerminalUI.getInstance();
+    ui.render();
+  } catch (error) {
+    const { logError } = await import("./logger.js");
+    logError("Failed to write to costs.json:", error);
+  }
+}

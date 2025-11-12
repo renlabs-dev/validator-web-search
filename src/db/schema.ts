@@ -133,7 +133,10 @@ export const validationResult = pgTable(
   "validation_result",
   {
     id: uuid("id").primaryKey().defaultRandom(),
-    parsedPredictionId: uuid("parsed_prediction_id").notNull().unique(),
+    parsedPredictionId: uuid("parsed_prediction_id")
+      .notNull()
+      .unique()
+      .references(() => parsedPrediction.id),
     outcome: varchar("outcome", { length: 50 }).notNull(),
     proof: varchar("proof", { length: 700 }).notNull(),
     sources: jsonb("sources").notNull(),

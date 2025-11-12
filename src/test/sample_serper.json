@@ -1,0 +1,331 @@
+{
+  "search_metadata": {
+    "id": "search_zV8qOXeM56c7LNxRQepJnE5N",
+    "status": "Success",
+    "created_at": "2025-11-07T13:38:32Z",
+    "request_time_taken": 1.06,
+    "parsing_time_taken": 0.06,
+    "total_time_taken": 1.12,
+    "request_url": "https://www.google.com/search?q=bitcoin+price+yesterday&oq=bitcoin+price+yesterday&gl=us&hl=en&ie=UTF-8",
+    "html_url": "https://www.searchapi.io/api/v1/searches/search_zV8qOXeM56c7LNxRQepJnE5N.html",
+    "json_url": "https://www.searchapi.io/api/v1/searches/search_zV8qOXeM56c7LNxRQepJnE5N"
+  },
+  "search_parameters": {
+    "engine": "google",
+    "q": "bitcoin price yesterday",
+    "device": "desktop",
+    "google_domain": "google.com",
+    "hl": "en",
+    "gl": "us"
+  },
+  "search_information": {
+    "query_displayed": "bitcoin price yesterday",
+    "total_results": 30200000,
+    "time_taken_displayed": 0.29,
+    "detected_location": "Kent County, Rhode Island",
+    "has_no_results_for": false
+  },
+  "organic_results": [
+    {
+      "position": 1,
+      "title": "Bitcoin USD (BTC-USD) Price History & Historical Data",
+      "link": "https://finance.yahoo.com/quote/BTC-USD/history/",
+      "source": "Yahoo Finance",
+      "domain": "finance.yahoo.com",
+      "displayed_link": "https://finance.yahoo.com › quote › BTC-USD › history",
+      "snippet": "Discover historical prices of Bitcoin USD (BTC-USD) on Yahoo Finance. View daily, weekly or monthly formats.",
+      "snippet_highlighted_words": [
+        "historical prices of Bitcoin USD (BTC-USD"
+      ],
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAA8FBMVEVeAc1dActaAcVYAcFXAb5WAbxUAbhTAbVRALFPAK1NAKlLAKRIAKyKyVFJAKFVN6Oe8wqIxFJIAJ1OALtXK7BGALFiZJKl/wB7pWo6AKmOz01fU6BzkXpoeIStotBUGbSZ6CiQ1EVxh4aEulxWSZXa1un///8zAJhGAJldR6cwALBgXpaT3DhOFKjz8vdpb5Xm5e1PLaBsT7JDAJPIweJeNLB1mHOPf8Lc3Op7ZLkgAJq0rNQaAIsyAIhBAI9AAIw+AIg8AINXO5S8udBIIp19b66Cdqqgl74hAHo5AH2rpMdxXqGAbrOfksNCIoVmTKYUy/OsAAABhklEQVR4AW3RBXYDMQwEUIeZs2EGhbehtmFmvP9tOvI+l+exv0mS4JhMJrPZbLFYrTabzW53OJxOp8vlcjNBlCmSBvz/GMjtEf8f84I8wH+P+bwwv/h2zK6OBYIhr8fvDwtJ0iJR45wWiyeSbGEB4xthqXhac8Ey8WwyBwOqK/OFYime1VxaOV5JVqkGqwtJjkgjXm5qrXhCaxfCHZ30WrherwvDXuKZZq7r7QXjqWSfCAgbCDZ7Jh5rDrH06n9LvpOBg8FAoDZHpNDQRsQZT6YkcTZglHV78zoZGZGB88FgsRBOtj59j0TYUnDZSfqLMKALWB39SnW+XC5XwhiOv6YymHOkAdk8spVcN1eAG5lWa/GNAg2QtFVlAwOy1cK4cDbdzha4EJeuKL1GBB+r0Y62REOiPVFap8Oxe4KdBcxfm3ar+q47vIy6x0t3dB1t06DzWcjXenS7k769VO+6vunSgR4gYJjxSXhN5nRanU7n01kh/3/+rQDkrBCEKIMoA/6qW5LKB+nIZaQqRO4KAAAAAElFTkSuQmCC"
+    },
+    {
+      "position": 2,
+      "title": "Bitcoin (BTC) Price | BTC to USD Price and Live Chart",
+      "link": "https://www.coindesk.com/price/bitcoin",
+      "source": "CoinDesk",
+      "domain": "www.coindesk.com",
+      "displayed_link": "https://www.coindesk.com › price › bitcoin",
+      "snippet": "Bitcoin ; 24H Open. $121,429.53 ; 24H High. $124,081.65 ; 24H Low. $99,748.66 ; 24H Vol. $29.60B.",
+      "snippet_highlighted_words": ["24H Open. $121,429.53"],
+      "sitelinks": {
+        "inline": [
+          {
+            "title": "Bitcoin Cash BCH",
+            "link": "https://www.coindesk.com/price/bitcoin-cash"
+          },
+          {
+            "title": "Ethereum ETH",
+            "link": "https://www.coindesk.com/price/ethereum"
+          },
+          {
+            "title": "Platforms",
+            "link": "https://www.coindesk.com/price/bitcoin/platforms"
+          },
+          {
+            "title": "News",
+            "link": "https://www.coindesk.com/price/bitcoin/news"
+          }
+        ]
+      },
+      "rich_snippet": {
+        "extensions": ["$99,748.66"]
+      },
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAA4VBMVEX/2DD/2DP/2DX/2Tn/2T3/2kH/2kP/20j/20v/3FH/3Fj/3Vv/3WD/3mb/1yr/3TXtzDLiwDD/4EnnyT7/4FLjxUv/1iWskyAGBgYAAABQQxL/4z5/biIJCg5sXSL/5U3z00tgUygQDxuXhDgAAAkoIRMAAA4QEREaFhZYTCMeHiAgICEGCB/bv0r/2ivTsyMAAB+/p0IqIgVqWhaPeiAAABOzmjZ3Zyj/1Rz/4TPStC9cThzCpzFrXCs2LAjEph6ehhB7aRIWEgXbtxG7oTH/1BKVfhWljyznxBuzlxX/0gAt0qO8AAABmElEQVR4AXXS07ZDMRQF0NTOQZXUdnNV2/r/D7pr18zrHNthzGK12mx2u8PhdLndbo/H4/X6fH6/PxAIMCiQ1PmijD8q8KaEZ6XEj8o4qaYbGmLNYNAEh8LhEBQYgWpRIWN63JFIJlOudCaby+VJgVBdCiEKsWKpXE5Wqrlavd5oAn3AiPqSEliAlculRq5er3//UCghZ79SyL9oK5kstxOdbqNWq2WoKdY7h/71tfggNRzFzXSnOm6GqGUgXn8ip5rFqmmaDeOaJnrGQEBSJeSsT4u8jUvKenhqLsXCwDK0+FERCT3jEs3KeZ9pg66ddrFKIPaGBSH+FOvH2h1UjctS8xjK1qQxjDJVXBkbG615sD3dj61Jd1K2+pxzpVksQFucLuQCktIoKkJ4vR/FAqERKTf9iGLRma7uFIj3h+VGd1+TUruoI1aLk55xCZOFQiFZLrc3mGgztNtJz4hR7lC0B8fEt7R7fkrLmTKmmo2UHY66ny0VthyN7hT9GxyBlB1I6R2XrHBd6PkGNyRF8L0CPyvwo9r+AYEhUr6AN+2eAAAAAElFTkSuQmCC"
+    },
+    {
+      "position": 3,
+      "title": "Bitcoin Historical Data",
+      "link": "https://www.investing.com/crypto/bitcoin/historical-data",
+      "source": "Investing.com",
+      "domain": "www.investing.com",
+      "displayed_link": "https://www.investing.com › crypto › historical-data",
+      "snippet": "What Was the Opening Price for BTC/USD Today? The opening price for BTC/USD today was 102,570.2. Find a Crypto Broker.",
+      "snippet_highlighted_words": ["Price", "BTC", "price", "BTC", "Crypto"],
+      "sitelinks": {
+        "inline": [
+          {
+            "title": "Bitcoin",
+            "link": "https://in.investing.com/crypto/bitcoin/historical-data"
+          },
+          {
+            "title": "Bitcoin Futures CME",
+            "link": "https://www.investing.com/crypto/bitcoin/bitcoin-futures-historical-data"
+          },
+          {
+            "title": "BTC/USD",
+            "link": "https://www.investing.com/crypto/bitcoin/btc-usd-historical-data"
+          }
+        ]
+      },
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAASFBMVEVKSkpGRkZCQkIyMjMrKytnZ2dVVVWdbCPQjB/+qAA4OTnW1tb///9xVzYeHh8vLy4GBwiEhIXLy8udnZ3u7u6np6eysrK+vr7lu5NYAAAA90lEQVR4AWKgEQD0LR+IEoIwEECFiew35CdYuf9Nl7K9jQpDnrgfGT4+fd5vev/wezv3weA9aAz+Me70N3Etg0cUGb17eP6nqaIrSFKQ/UMqot/UhgxmI4IHzJ8sEXBDPy9riNu265HznFRzXgJ3DFlkkZr9EInKY6nkB04VD7nGlQ+2imR9xJDKSNImMmssi/Edc1IrVUs96izxAx7KXKqNIlsQWfQJqWE77yIzPaGiIjRLjeIDMo3VYmLGgCvmjmgDmRUoqHGJbo5xJaBUQPeyGRpSSom0LOgVltrW0OgStGoAkZI1tE9B3z6jXZHM6Msz0I/8xDPs6hgN6v9H/gAAAABJRU5ErkJggg=="
+    },
+    {
+      "position": 4,
+      "title": "Bitcoin Price Chart (BTC/USD)",
+      "link": "https://bitflyer.com/en-us/bitcoin-chart",
+      "source": "bitFlyer",
+      "domain": "bitflyer.com",
+      "displayed_link": "https://bitflyer.com › en-us › bitcoin-chart",
+      "snippet": "Bitcoin Price Chart (BTC/USD). 102,032.02*USD. -1.02 %.",
+      "snippet_highlighted_words": ["102,032.02*USD"],
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAZlBMVEX9/f////8AaeEAdOMAcOKUufCrx/MAbuJ4qe0ZgOUAe+ScvvGxy/QOfuUAfOSDsO4Ad+PS4fiPt/CUv/eUuvC70vX/y7D/upT/4M76hj/6eB36eyb6cgH7upz6gDP9+Pf6dRL86eJUQ6mUAAAAr0lEQVR4AcXQAwLEMBAF0J2gttv4/pfc6drGL5MXL/4WOM/eCKWUcc/HDwE2FwLYIQ3DMIqTCD8U0jQMs/wTyKIoKuKE4odBMRcOkMeYsqzquq6A86bh7R69BFMCdP1wvhUfR6IVjJOQal99uKC6m7TW0lzGXiBaBxdxkIji0PbHV4GSVrgz3MY42NsWWZqmBcf6Pe2RIkZ8L+cLal5BlmVZwa9gkGPac9zvBe03WQLdiQsi191I5gAAAABJRU5ErkJggg=="
+    },
+    {
+      "position": 5,
+      "title": "Bitcoin price today, BTC to USD live price, marketcap ...",
+      "link": "https://coinmarketcap.com/currencies/bitcoin/",
+      "source": "CoinMarketCap",
+      "domain": "coinmarketcap.com",
+      "displayed_link": "https://coinmarketcap.com › Cryptocurrency",
+      "snippet": "The live Bitcoin price today is $100670.74 USD with a 24-hour trading volume of $72416692569.77 USD. We update our BTC to USD price in real-time.",
+      "snippet_highlighted_words": ["100670.74 USD"],
+      "rich_snippet": {
+        "detected_extensions": {
+          "rating": 4.7,
+          "reviews": 2
+        },
+        "extensions": ["$99,711.68", "4.7", "(2)"]
+      },
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAASFBMVEVHcEwgWf8pZ/8vcP8pZ/8vcP82ef8gWf8oZ/8gXf8RQ/8cU/9piv2HoP8YVf+vv/3////L1v5OeP0RS//n7P4LQP8GNf8CLv+PAhavAAAAGHRSTlMAE5jY9P//Q///2PT//////////////5iEB6eJAAABPElEQVR4AW3OibKDIAyFYVywxAvhQMC+/5vekOp0/bvqN4fROTfNy+pH20vLPDntFqwv3m66IzILX7hNbibt93Z2+7BzrL3y4v7oUqKYUvLhqY6ZzjKsUv0LGnMFSqxbzEAKL0hsVsUO9w3Jnyg8EoAoMI/H4obqT5RhCZFJcuFAG3mUcKFyb60TRyBwRtaP9xeyCLJ+QzECjSOiqeuieSTpugGhlcYbUlA9MSD1ipyUa2nyQK/YlTvy0dATUPSAWFAHekXpcrSWEHUMYmpApgtVbXOwVDWS6DmEYGjpobUzCzMxVwojxeMwJSAe4+G6b5CHKnbTgxpaqjUVIDI9VJeqxglWZqGRoaZkHGKsvTObUVjdflxsibBmTIu7P1EsVibT2U1KH86nTs7dXq1fW/Wb06b7/uqmf/usu38BBSarl1z3xgAAAABJRU5ErkJggg=="
+    },
+    {
+      "position": 6,
+      "title": "BTC USD — Bitcoin Price and Chart",
+      "link": "https://www.tradingview.com/symbols/BTCUSD/",
+      "source": "TradingView",
+      "domain": "www.tradingview.com",
+      "displayed_link": "https://www.tradingview.com › ... › Cryptocurrencies",
+      "snippet": "Bitcoin faces a strong sell wall above $105,000, with many sell orders creating downward pressure. If it hits this level, traders predict a drop to $98,000 to ...",
+      "snippet_highlighted_words": [
+        "Bitcoin faces a strong sell wall above $105,000"
+      ],
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAPFBMVEVHcEz///8ABBYAAAETFyITFyITFyITFiETFyITFyJyc3cMER66u7xdX2OMjZDa2ttPUVbs7O3ExMYxMzu3PIggAAAACnRSTlMA////YfH/Jq/yoIfyUgAAAMpJREFUKJGFk1sChCAIRRUaMulhuv+9jqI500O7HwWewBBUSo1mopsmM6qo4U6yhhjXYkSjMm1o1MN+dV/VZkSvEA5xsuMCiycQFlvkAK1F5iCeQNx0kU/mjjgnZ8cznF16WhRnhQsMAldx8JJ2Rq/1hnu28w/ZNSovoHMouXXgWgpC+ZohRaf43yEwHamypS08QVxLHf/HV2Gu4x/WSLACmW+RHinX4fHclSXKMXF6L4HPsHSFjva897M7Jt0B645md6gb1+GTrsMXkTARdziYRUoAAAAASUVORK5CYII="
+    },
+    {
+      "position": 7,
+      "title": "Bitcoin Price, BTC Price, Live Charts, and Marketcap",
+      "link": "https://www.coinbase.com/price/bitcoin",
+      "source": "Coinbase",
+      "domain": "www.coinbase.com",
+      "displayed_link": "https://www.coinbase.com › Prices",
+      "snippet": "... price of $109,613.05, and observed a -1% decrease since yesterday's price of $103,326.16. The peak price of Bitcoin, recorded at $126,210.50 on October 6 ...",
+      "snippet_highlighted_words": [
+        "price",
+        "yesterday's price",
+        "price",
+        "Bitcoin"
+      ],
+      "rich_snippet": {
+        "extensions": ["$101,928.96"]
+      },
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAATlBMVEVHcEz///////////////////////////////////////////////////8ARv8AUv+Sqv8APv8AT//G0/8gX/+9zP81av/X4P+svv+wwf/nROS8AAAADXRSTlMAGYUYYTLC60Ddh4YXY3rd4gAAAOZJREFUKJGNU9cCwyAINHu0gMas/v+PFkjMaBPbe0IOGScaE1A8ygqgKtPCfCJnIqDKT1TSqNcPw6RGk+1cLY55dMhw4yyn+sh5wo4UHZLf2YxN61ZKaWfZlSjZCEcnCNton5zTrQkZSwbHmaVnnoHUg7313vaoccQT8ezcJ4ZUAKEEcs+FSQFGuYg2aGAlthsBWlMCSGjX7wr1Oi9AySUnPF0EGKxg4qJsK+nhG3EymjbaUHs/SnorwktEuJaPFvkOwpPUopPw0SczyfVjP3+vSXzBttWcttVM/l1q/Q7p8h0e+3d4A9SUIzTJE1fEAAAAAElFTkSuQmCC"
+    },
+    {
+      "position": 8,
+      "title": "Bitcoin price today - BTC price chart & live trends",
+      "link": "https://www.kraken.com/prices/bitcoin",
+      "source": "Kraken",
+      "domain": "www.kraken.com",
+      "displayed_link": "https://www.kraken.com › Prices",
+      "snippet": "Bitcoin price today is $100,527.00. In the last 24 hours Bitcoin's price moved -2.56%. The current BTC to USD conversion rate is $100,527.00 per BTC.",
+      "snippet_highlighted_words": ["Bitcoin price today is $100,527.00"],
+      "sitelinks": {
+        "inline": [
+          {
+            "title": "Bitcoin price today in Canada",
+            "link": "https://www.kraken.com/en-ca/prices/bitcoin?mode=consumerapp"
+          },
+          {
+            "title": "Wrapped Bitcoin (WBTC)",
+            "link": "https://www.kraken.com/prices/wrapped-bitcoin"
+          },
+          {
+            "title": "€88,391.00",
+            "link": "https://www.kraken.com/en-nl/prices/bitcoin"
+          },
+          {
+            "title": "£77,321.00",
+            "link": "https://www.kraken.com/en-gb/prices/bitcoin"
+          }
+        ]
+      },
+      "rich_snippet": {
+        "detected_extensions": {
+          "rating": 4.7,
+          "reviews": 22434
+        },
+        "extensions": ["4.7", "(22,434)"]
+      },
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAP1BMVEVHcExzM/hxMvZxMvZxMvVzMvhyM/ZyMvZyMvZtKfVoHfVlFPSniPnPv/zk2v2bdvj///+1nPrw6/55PvaCTvaTNBaCAAAACXRSTlMAQbPs/0K6urOZul/uAAAAq0lEQVR4AZ3TQRKDIAxAUZRQTUIgaO9/1mZRO8ERFv0LBnhLQrCWNcKtuCYD6wWPbcHaAIaaYFgK+xj3EMcYgzsgMRO6i+AoSymSL/bIVb9VuiM1/dWoR6zqqtghqe9gj5i1q6JDkh6FHHJRYVE93wZ2KB0emjnrwaxauWnhHtv/SBeSITnEKoAgFTELwmkbh4BkC6HbOHxu+tjTMZkO2Hw0TcdmpafvsBh8AAygFLi3+dQVAAAAAElFTkSuQmCC"
+    },
+    {
+      "position": 9,
+      "title": "Bitcoin Price History Chart (2009, 2010 to 2025)",
+      "link": "https://charts.bitbo.io/price/",
+      "source": "Bitbo Charts",
+      "domain": "charts.bitbo.io",
+      "displayed_link": "https://charts.bitbo.io › price",
+      "snippet": "Bitcoin rose strongly from $7,000 at the beginning of the year to more than $10,000 in mid-February. $10,000 proved to be a critical level for Bitcoin ...",
+      "snippet_highlighted_words": ["more than $10,000 in mid-February"],
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcBAMAAACAI8KnAAAAJFBMVEUSFR4FDh5SPx6jdR7FjB56WR5lSx7ppB4yKh6RaR7Vlx67hR5pRKZIAAAAgElEQVR4AWOgHAii8pRdkXiMKSURggJwLmdxg/KqALikyozo1cFOAnC1mos1lNwQXO2JnJuQuRG7wpyQuEFG3RYMCG5g6/JAJK5xlTWy4uqMJhSTRY1QTJ4yDZkbtLV5BxI3oGlXAtxk5e6py7chebC7aoYgErc1AcRD8AWoEMAAei4j0XDTevUAAAAASUVORK5CYII="
+    },
+    {
+      "position": 10,
+      "title": "Bitcoin Price (BTC), Market Cap, Price Today & Chart History",
+      "link": "https://blockworks.co/price/btc",
+      "source": "Blockworks",
+      "domain": "blockworks.co",
+      "displayed_link": "https://blockworks.co › price › btc",
+      "snippet": "The table above accurately updates our BTC price in real time. The price of BTC is up 0.65% since last hour, down -1.46% since yesterday.",
+      "snippet_highlighted_words": ["down -1.46% since yesterday"],
+      "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAArlBMVEX////OzNYAADcAAEcAADsAAAoAABBTUFzBwcAjFFQfEkoRCSgSCisAABsAAABiYmIPCCRxcXHa2tqEhIQAAEMiE1FPT0/Rzd8iAHg3H4AyHHUAACOGhI3a2OBvbHgXAkdfXGo2Hn1jXnnUz+k4DaVIKqpEJ6BaTI+Vkabx8fTDwc03LGGysL7X0PNOH9JbNdRWMsm0r8ozF3/CvdSjnMA9AM9LGNEzAKRpXJn39f2rbw/BAAAAq0lEQVR4AWKgEAAaoYssBGIgAKJh3N1dcXfufzF6cEsetf3R7lE0xLAcxAufSIuQJCuQqul4NDTNJKFmkdB+Q8eFJEOGOvRe0Q9CKHJv+2OegGpCQC3FI5chHOZagT6whCK3q/ocX920UL8MocFwhMeSdsZYhJuZlID5hICik/7A+5vp6QvO5gto2d73BysS+gRcIzwGGyyugy16w90emh+6mmOK3js9Q392Bph4Ke6EvNmrAAAAAElFTkSuQmCC"
+    }
+  ],
+  "related_questions": [
+    {
+      "question": "How much was 1 Bitcoin worth yesterday?",
+      "answer": "Bitcoin Price Chart (BTC/USD)24 Hour High24 Hour LowMarket Capitalization111,188.08 USD109,802.74 USD2,209,501,542,309.75 USD",
+      "answer_table": {
+        "headers": ["24 Hour High", "24 Hour Low", "Market Capitalization"],
+        "rows": [
+          ["111,188.08 USD", "109,802.74 USD", "2,209,501,542,309.75 USD"]
+        ]
+      },
+      "source": {
+        "title": "Bitcoin Price Chart (BTC/USD) - bitFlyer",
+        "link": "https://bitflyer.com/en-us/bitcoin-chart",
+        "source": "bitFlyer",
+        "domain": "bitflyer.com",
+        "displayed_link": "https://bitflyer.com › en-us › bitcoin-chart",
+        "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABwAAAAcCAMAAABF0y+mAAAAZlBMVEX9/f////8AaeEAdOMAcOKUufCrx/MAbuJ4qe0ZgOUAe+ScvvGxy/QOfuUAfOSDsO4Ad+PS4fiPt/CUv/eUuvC70vX/y7D/upT/4M76hj/6eB36eyb6cgH7upz6gDP9+Pf6dRL86eJUQ6mUAAAAr0lEQVR4AcXQAwLEMBAF0J2gttv4/pfc6drGL5MXL/4WOM/eCKWUcc/HDwE2FwLYIQ3DMIqTCD8U0jQMs/wTyKIoKuKE4odBMRcOkMeYsqzquq6A86bh7R69BFMCdP1wvhUfR6IVjJOQal99uKC6m7TW0lzGXiBaBxdxkIji0PbHV4GSVrgz3MY42NsWWZqmBcf6Pe2RIkZ8L+cLal5BlmVZwa9gkGPac9zvBe03WQLdiQsi191I5gAAAABJRU5ErkJggg=="
+      }
+    },
+    {
+      "question": "Has Bitcoin gone up since yesterday?",
+      "answer": "Bitcoin Price is at a current level of 101635.3, down from 106521.1 yesterday and up from 67793.30 one year ago. This is a change of -4.59% from yesterday and 49.92% from one year ago.",
+      "answer_highlight": "up from 67793.30 one year ago",
+      "source": {
+        "title": "Bitcoin Price (Daily) - Historical Data & Trends - YCharts",
+        "link": "https://ycharts.com/indicators/bitcoin_price#:~:text=Bitcoin%20Price%20is%20at%20a,49.92%25%20from%20one%20year%20ago.",
+        "source": "YCharts",
+        "domain": "ycharts.com",
+        "displayed_link": "https://ycharts.com › indicators › bitcoin_price",
+        "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAASFBMVEUCgugkk+sGhOiy2Pb8/Pxut/Fbru8hkevx9/sdj+oTiurk8Pp7vfKgz/WKxPPM5fmXy/Qul+s2m+zq8/q73PdVq+9Np+5ksvDiV4nDAAAAWElEQVR4AaXItQHDQAAEwf3Xipn7r9TMduZJDvghhBDvhbNEU4BME87ywqKEqrbIuWi0hU4brmLvwKh95GaaSxadeJhYdeBFVVtXvNg05ePY/z1iVUV+OwKOOQLgqpJECQAAAABJRU5ErkJggg=="
+      }
+    },
+    {
+      "question": "Did Bitcoin hit 100k yesterday?",
+      "answer": "Bitcoin hits $100,000. Bitcoin's price broke $100,000 on Wednesday night, capping a bull run that has seen the original cryptocurrency rise more than 30% since Election Day.Dec 4, 2024",
+      "answer_highlight": "Bitcoin hits $100,000",
+      "date": "Dec 4, 2024",
+      "source": {
+        "title": "Bitcoin price hits $100,000 - Axios",
+        "link": "https://www.axios.com/2024/12/05/bitcoin-100000-crypto-all-time-high#:~:text=Bitcoin%20hits%20%24100%2C000&text=Bitcoin's%20price%20broke%20%24100%2C000%20on,than%2030%25%20since%20Election%20Day.",
+        "source": "Axios",
+        "domain": "www.axios.com",
+        "displayed_link": "https://www.axios.com › 2024/12/05 › bitcoin-100000-c...",
+        "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAWlBMVEVHcEzi4uLu7u7z8/P29vbl5eXv7+/4+Pn////w8PDv7+/o7fcODBQAAADW1tZ+m+4nTaZfX18XWeFLeu4+Oin19fWdsvC3x/apqKSEhIQrZeOampp1dXXZ2dlXnG8AAAAAFnRSTlMAF5Xb/Ryo///MzP/////////////b2JRHvgAAAH5JREFUeAFtz0UCwzAMBECZN4nDTP//ZmWl3M7NFlOitLHWaEd3PkAETyLDUy5xvOEcJ/lFLCupUqSR1E1skWgyEuj6oSzARrJgUzcv5Qpmr4+tA8pSPqRk7iZgLXcAhrQkFEBRRmmqAop6AtuPE8H9LMZyPGV/jhPuOl8RuwEHlge5aG/BkQAAAABJRU5ErkJggg=="
+      }
+    },
+    {
+      "question": "How much is $100 Bitcoin worth right now?",
+      "answer": "BTC to USD over timeBTCToday1Y 󰌾 25.04%50 BTC$5,107,232.75 USD$3,828,336.00 USD100 BTC$10,214,465.50 USD$7,656,672.00 USD500 BTC$51,072,327.50 USD$38,283,360.00 USD1,000 BTC$102,144,655.00 USD$76,566,720.00 USD4 more rows",
+      "answer_table": {
+        "headers": ["BTC", "Today", "1Y 󰌾 25.04%"],
+        "rows": [
+          ["50 BTC", "$5,107,232.75 USD", "$3,828,336.00 USD"],
+          ["100 BTC", "$10,214,465.50 USD", "$7,656,672.00 USD"],
+          ["500 BTC", "$51,072,327.50 USD", "$38,283,360.00 USD"],
+          ["1,000 BTC", "$102,144,655.00 USD", "$76,566,720.00 USD"]
+        ]
+      },
+      "source": {
+        "title": "Convert Bitcoin (BTC) to US Dollar (USD) - Coinbase",
+        "link": "https://www.coinbase.com/converter/btc/usd",
+        "source": "Coinbase",
+        "domain": "www.coinbase.com",
+        "displayed_link": "https://www.coinbase.com › converter › btc › usd",
+        "favicon": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAA0klEQVR4AWNwL/BBwf///5cE4qlAfPs/AtyGikmiq0fXvAKmY8+F//+X7YDgHWf/I4MVyHqQNZ8Byc4DamBwxobBcjBwBqYPxebAZqjiABzYGaQG1SUwP/+fuQVZM4RtVADBCHEMl0gyQAIHVZF8wv//Lz/B1IDYIDEUQ2BgKsiA2zvOIhngjKwZ1RAGfag6fXjA3gYaAAppmAFgJ+MEd14g8MevEDGqGHB7zwWKvEB5IEpCEhB50YiakJpIS0gUJWWCmWnHWURm2nMBd2aiODsDAOhf2J5bvit0AAAAAElFTkSuQmCC"
+      }
+    }
+  ],
+  "related_searches": [
+    {
+      "query": "Bitcoin price yesterday usd",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+yesterday+usd&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhhEAE"
+    },
+    {
+      "query": "Ethereum price",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Ethereum+price&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhPEAE"
+    },
+    {
+      "query": "Bitcoin price yesterday prediction",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+yesterday+prediction&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAheEAE"
+    },
+    {
+      "query": "Bitcoin price history chart 10 years",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+history+chart+10+years&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhiEAE"
+    },
+    {
+      "query": "Bitcoin price history 5 years",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+history+5+years&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhjEAE"
+    },
+    {
+      "query": "Bitcoin price history by month",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+history+by+month&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhmEAE"
+    },
+    {
+      "query": "Bitcoin price in 2025",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+in+2025&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhlEAE"
+    },
+    {
+      "query": "Bitcoin price history chart 20 years",
+      "link": "https://www.google.com/search?sca_esv=3c872d09a5272a46&hl=en&gl=us&q=Bitcoin+price+history+chart+20+years&sa=X&ved=2ahUKEwi0zNLhlOCQAxVU8MkDHX1kG_4Q1QJ6BAhcEAE"
+    }
+  ],
+  "pagination": {
+    "current": 1,
+    "next": "https://www.google.com/search?q=bitcoin+price+yesterday&oq=bitcoin+price+yesterday&gl=us&hl=en&start=10&ie=UTF-8"
+  }
+}

@@ -33,6 +33,7 @@ logs/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+costs.json
 
 # Testing
 coverage/
@@ -41,3 +42,4 @@ coverage/
 # Drizzle
 drizzle/
 drizzle.config.ts
+.direnv/

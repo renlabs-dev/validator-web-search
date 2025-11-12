@@ -1,4 +1,5 @@
 import { env } from "../env.js";
+import { logError } from "../logger.js";
 
 export interface SearchResult {
   url: string;
@@ -27,7 +28,7 @@ export async function searchWeb(query: string): Promise<SearchResult | null> {
     const response = await fetch(url.toString());
 
     if (!response.ok) {
-      console.error(
+      logError(
         `SearchAPI error: ${response.status} ${response.statusText}`,
       );
       return null;
@@ -36,7 +37,7 @@ export async function searchWeb(query: string): Promise<SearchResult | null> {
     const data = (await response.json()) as SearchApiResponse;
 
     if (data.error) {
-      console.error(`SearchAPI error: ${data.error}`);
+      logError(`SearchAPI error: ${data.error}`);
       return null;
     }
 
@@ -55,7 +56,7 @@ export async function searchWeb(query: string): Promise<SearchResult | null> {
       pub_date: firstResult.date || null,
     };
   } catch (error) {
-    console.error("Search API error:", error);
+    logError("Search API error:", error);
     return null;
   }
 }
@@ -80,7 +81,7 @@ export async function searchMultiple(
     const response = await fetch(url.toString());
 
     if (!response.ok) {
-      console.error(
+      logError(
         `SearchAPI error: ${response.status} ${response.statusText}`,
       );
       return [];
@@ -89,7 +90,7 @@ export async function searchMultiple(
     const data = (await response.json()) as SearchApiResponse;
 
     if (data.error) {
-      console.error(`SearchAPI error: ${data.error}`);
+      logError(`SearchAPI error: ${data.error}`);
       return [];
     }
 
@@ -109,7 +110,7 @@ export async function searchMultiple(
       }))
       .slice(0, maxResults);
   } catch (error) {
-    console.error("Search API error:", error);
+    logError("Search API error:", error);
     return [];
   }
 }

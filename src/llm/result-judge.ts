@@ -10,6 +10,10 @@ export interface Judgment {
   summary: string;
   evidence: string;
   reasoning: string;
+  sufficient: boolean; // Are results adequate for confident judgment?
+  nextQuerySuggestion?: string; // What to search for next if insufficient
+  inputTokens: number;
+  outputTokens: number;
 }
 
 /**
@@ -46,6 +50,10 @@ export class ResultJudge {
         summary: "No search results to evaluate",
         evidence: "",
         reasoning: "",
+        sufficient: false,
+        nextQuerySuggestion: "Try a different search query approach",
+        inputTokens: 0,
+        outputTokens: 0,
       };
     }
 
@@ -84,8 +92,11 @@ Evaluate these results and determine if they confirm or refute the prediction.`;
     const summary = extractXML(response.content, "summary");
     const evidence = extractXML(response.content, "evidence");
     const reasoning = extractXML(response.content, "reasoning");
+    const sufficientStr = extractXML(response.content, "sufficient");
+    const nextQuerySuggestion = extractXML(response.content, "next_query_suggestion");
 
     const score = parseInt(scoreStr) || 5;
+    const sufficient = sufficientStr.toLowerCase() === "yes" || score >= 7 || score <= 3;
 
     // Validate decision matches score
     let finalDecision = decision;
@@ -100,6 +111,10 @@ Evaluate these results and determine if they confirm or refute the prediction.`;
       summary,
       evidence,
       reasoning,
-    };
+      sufficient,
+      nextQuerySuggestion: nextQuerySuggestion || undefined,
+      inputTokens: response.inputTokens,
+      outputTokens: response.outputTokens,
+    } as Judgment;
   }
 }

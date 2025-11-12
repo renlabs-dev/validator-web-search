@@ -8,6 +8,8 @@ export interface ChatMessage {
 
 export interface ChatResponse {
   content: string;
+  inputTokens: number;
+  outputTokens: number;
 }
 
 interface ModelConfig {
@@ -24,6 +26,17 @@ export const MODELS: Record<string, ModelConfig> = {
 };
 
 /**
+ * Create a shared OpenRouter client
+ * Used by both chat completions and embeddings
+ */
+export function createOpenRouterClient(): OpenAI {
+  return new OpenAI({
+    baseURL: "https://openrouter.ai/api/v1",
+    apiKey: env.OPENROUTER_API_KEY,
+  });
+}
+
+/**
  * Create a stateful chat function for OpenRouter
  * Maintains conversation history across multiple calls
  */
@@ -34,14 +47,7 @@ export function createChat(modelKey: keyof typeof MODELS) {
   }
   const messages: ChatMessage[] = [];
 
-  const client = new OpenAI({
-    baseURL: "https://openrouter.ai/api/v1",
-    apiKey: env.OPENROUTER_API_KEY,
-    defaultHeaders: {
-      "HTTP-Referer": "https://github.com/renlabs-dev/validator",
-      "X-Title": "Torus Validator",
-    },
-  });
+  const client = createOpenRouterClient();
 
   return async function chat(
     userMessage: string,
@@ -77,8 +83,13 @@ export function createChat(modelKey: keyof typeof MODELS) {
       const assistantMessage = choice.message.content;
       messages.push({ role: "assistant", content: assistantMessage });
 
+      const inputTokens = response.usage?.prompt_tokens || 0;
+      const outputTokens = response.usage?.completion_tokens || 0;
+
       return {
         content: assistantMessage,
+        inputTokens,
+        outputTokens,
       };
     } catch (error) {
       console.error("OpenRouter API error:", error);
